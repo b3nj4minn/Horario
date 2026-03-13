@@ -3,7 +3,7 @@ import {
   Clock, MapPin, User, Calendar as CalendarIcon, BookOpen, 
   Bell, BellRing, BellOff, Download, Coffee, X, FileEdit,
   Share2, PieChart, Timer, TrendingUp, CheckCircle2, Rocket, PartyPopper,
-  ChevronLeft, ChevronRight, CalendarDays, AlertTriangle, 
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, CalendarDays, AlertTriangle, 
   CheckCircle, XCircle, HelpCircle, ListTodo, Settings, GraduationCap,
   UploadCloud, Calculator, Link2, ExternalLink, Play, Pause, RotateCcw,
   Cloud, CloudOff, CloudLightning, Key, ChevronRightCircle, Activity, BarChart3,
@@ -33,7 +33,7 @@ try {
   console.error("Error iniciando Firebase", e);
 }
 
-// Colores Pastel Estilo Apple (Más contraste)
+// Colores Pastel Estilo Apple
 const colors = {
   cornerstone: 'bg-blue-100 text-blue-900 border-blue-200',
   algebra: 'bg-orange-100 text-orange-900 border-orange-200',
@@ -42,6 +42,10 @@ const colors = {
   pensamiento: 'bg-rose-100 text-rose-900 border-rose-200',
   induccion1: 'bg-indigo-100 text-indigo-900 border-indigo-200', 
   induccion2: 'bg-amber-100 text-amber-900 border-amber-200', 
+  gris: 'bg-gray-100 text-gray-800 border-gray-200',
+  menta: 'bg-teal-100 text-teal-900 border-teal-200',
+  rosa: 'bg-pink-100 text-pink-900 border-pink-200',
+  limon: 'bg-lime-100 text-lime-900 border-lime-200',
 };
 
 const getDotColor = (colorClass) => {
@@ -68,11 +72,11 @@ const dailyVerses = [
   { text: "Corramos con paciencia la carrera que tenemos por delante, puestos los ojos en Jesús.", ref: "Hebreos 12:1-2" }
 ];
 
-// HORARIOS
+// HORARIOS (Inducción convertida a Eventos para no penalizar asistencia)
 const inductionScheduleData = {
-  Lunes: [{ time: '08:00 - 09:00', subject: 'Tour Campus', teacher: 'Inducción', room: 'Hall Edificio Manuel Montt', color: colors.induccion1 }, { time: '09:00 - 10:30', subject: 'Vida Universitaria', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1 }],
-  Martes: [{ time: '09:00 - 10:30', subject: 'Convivencia Estudiantil', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion2 }, { time: '11:00 - 12:30', subject: '¿Y esto es inclusión?', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion2 }],
-  Miércoles: [], Jueves: [{ time: '09:30 - 11:00', subject: 'Bienvenida Carrera', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1 }], Viernes: [], Sábado: []
+  Lunes: [{ time: '08:00 - 09:00', subject: 'Tour Campus', teacher: 'Inducción', room: 'Hall Edificio Manuel Montt', color: colors.induccion1, eventType: 'evento' }, { time: '09:00 - 10:30', subject: 'Vida Universitaria', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1, eventType: 'evento' }],
+  Martes: [{ time: '09:00 - 10:30', subject: 'Convivencia Estudiantil', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion2, eventType: 'evento' }, { time: '11:00 - 12:30', subject: '¿Y esto es inclusión?', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion2, eventType: 'evento' }],
+  Miércoles: [], Jueves: [{ time: '09:30 - 11:00', subject: 'Bienvenida Carrera', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1, eventType: 'evento' }], Viernes: [], Sábado: []
 };
 
 const regularScheduleData = {
@@ -182,6 +186,7 @@ export default function App() {
   const [hasPromptedAttendance, setHasPromptedAttendance] = useState(false);
 
   const [showPomodoro, setShowPomodoro] = useState(false);
+  const [isEventsExpanded, setIsEventsExpanded] = useState(true);
   const [isPomoSettingsOpen, setIsPomoSettingsOpen] = useState(false);
   const [pomoStudyTime, setPomoStudyTime] = useState(25);
   const [pomoBreakTime, setPomoBreakTime] = useState(5);
@@ -379,12 +384,12 @@ export default function App() {
     resetPomodoro();
   };
 
-  // Motor Inteligente de Asistencia (Ignora las "Ventanas")
+  // Motor Inteligente de Asistencia (Ignora las "Ventanas" y los "Eventos")
   const pendingAttendanceClasses = useMemo(() => {
     const pending = [];
     if (currentTime.getTime() < inductionStart.getTime()) return pending;
     for (let d = new Date(inductionStart); d <= currentTime; d.setDate(d.getDate() + 1)) {
-      getClassesForDate(new Date(d), customEvents, hiddenEvents).filter(c => !c.isBreak).forEach(cls => {
+      getClassesForDate(new Date(d), customEvents, hiddenEvents).filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => {
         const classEndTime = new Date(d); classEndTime.setHours(...cls.time.split(' - ')[1].split(':'), 0, 0);
         if (classEndTime < currentTime) {
           const classId = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}_${cls.subject}_${cls.time}`;
@@ -394,6 +399,61 @@ export default function App() {
     }
     return pending.sort((a, b) => b.dateObj - a.dateObj);
   }, [currentTime, attendanceRecords, customEvents, hiddenEvents]);
+
+  // Motor Generador de Lista de Próximos Eventos (Global)
+  const upcomingEventsList = useMemo(() => {
+    const events = [];
+    const today = new Date(currentTime);
+    today.setHours(0,0,0,0);
+
+    // 1. Obtener eventos de inducción
+    if (today < semesterStart) {
+      const startD = new Date(Math.max(today.getTime(), inductionStart.getTime()));
+      for (let d = new Date(startD); d < semesterStart; d.setDate(d.getDate() + 1)) {
+        const dayName = jsDays[d.getDay()];
+        const indEvents = inductionScheduleData[dayName] || [];
+        indEvents.forEach(e => {
+          if (e.eventType === 'evento') {
+            const dateStr = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+            const id = `${dateStr}_${e.subject}_${e.time}`;
+            if (!hiddenEvents[id]) {
+              events.push({ ...e, dateObj: new Date(d), dateStr });
+            }
+          }
+        });
+      }
+    }
+
+    // 2. Obtener eventos personalizados
+    Object.keys(customEvents).forEach(dateStr => {
+      const [y, m, d] = dateStr.split('-');
+      const evtDate = new Date(y, m - 1, d);
+      if (evtDate >= today) {
+        const dayEvents = customEvents[dateStr] || [];
+        dayEvents.forEach(e => {
+          if (e.eventType === 'evento') {
+            events.push({ ...e, dateObj: evtDate, dateStr });
+          }
+        });
+      }
+    });
+
+    // 3. Filtrar los que ya pasaron hoy por hora y ordenar
+    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+    return events
+      .filter(e => {
+        if (e.dateObj.getTime() === today.getTime()) {
+          return timeToMins(e.time.split(' - ')[1]) > currentMins;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.dateObj.getTime() !== b.dateObj.getTime()) {
+          return a.dateObj.getTime() - b.dateObj.getTime();
+        }
+        return timeToMins(a.time.split(' - ')[0]) - timeToMins(b.time.split(' - ')[0]);
+      });
+  }, [customEvents, hiddenEvents, currentTime]);
 
   useEffect(() => { if (isDataLoaded && pendingAttendanceClasses.length > 0 && !hasPromptedAttendance && !isPreInduction) { setShowPendingModal(true); setHasPromptedAttendance(true); } }, [isDataLoaded, pendingAttendanceClasses, hasPromptedAttendance, isPreInduction]);
   useEffect(() => { if (showPendingModal && pendingAttendanceClasses.length === 0) setShowPendingModal(false); }, [pendingAttendanceClasses, showPendingModal]);
@@ -461,7 +521,8 @@ export default function App() {
       time: `${eventData.startTime} - ${eventData.endTime}`,
       room: eventData.room,
       color: eventData.color,
-      replaces: eventData.replaces || null
+      replaces: eventData.replaces || null,
+      eventType: eventData.eventType || 'evento'
     };
 
     let newHidden = { ...hiddenEvents };
@@ -482,7 +543,7 @@ export default function App() {
     localStorage.setItem('academic_custom_events', JSON.stringify(newCustom));
     pushToCloud({ hiddenEvents: newHidden, customEvents: newCustom });
     setEventModalData(null);
-    showToast('Evento guardado');
+    showToast(newEvent.eventType === 'evento' ? 'Evento guardado' : 'Materia guardada');
   };
 
   const handleDeleteEvent = (eventData) => {
@@ -543,7 +604,7 @@ export default function App() {
        localStorage.setItem('academic_recycle_bin', JSON.stringify(newRecycleBin));
        pushToCloud({ customEvents: newCustom, hiddenEvents: newHidden, recycleBin: newRecycleBin });
     }
-    showToast('Evento restaurado');
+    showToast('Restaurado');
   };
 
   const handlePermDelete = (item) => {
@@ -615,11 +676,11 @@ export default function App() {
     }
   }
 
-  // --- CÁLCULOS ESTILO APPLE (Excluyendo Ventanas) ---
+  // --- CÁLCULOS ESTILO APPLE (Excluyendo Ventanas Y EVENTOS) ---
   const uniqueSubjectsList = useMemo(() => {
     const s = new Set(); 
     Object.values(regularScheduleData).flat().filter(c => !c.isBreak).forEach(cls => s.add(cls.subject));
-    Object.values(customEvents).flat().filter(c => !c.isBreak).forEach(cls => s.add(cls.subject));
+    Object.values(customEvents).flat().filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => s.add(cls.subject));
     return Array.from(s);
   }, [customEvents]);
 
@@ -658,7 +719,7 @@ export default function App() {
       const dStart = new Date(date); dStart.setHours(0,0,0,0);
       const now = new Date(); now.setHours(0,0,0,0);
       
-      getClassesForDate(date, customEvents, hiddenEvents).filter(c => !c.isBreak).forEach(cls => {
+      getClassesForDate(date, customEvents, hiddenEvents).filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => {
         const e = new Date(date); e.setHours(...cls.time.split(' - ')[1].split(':'), 0, 0);
         if (e < currentTime) { 
             cumT++; 
@@ -683,7 +744,7 @@ export default function App() {
        const d = new Date(targetYear, targetMonth, day);
        const weekIdx = Math.min(3, Math.floor((day - 1) / 7)); 
        
-       getClassesForDate(d, customEvents, hiddenEvents).filter(c => !c.isBreak).forEach(cls => {
+       getClassesForDate(d, customEvents, hiddenEvents).filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => {
           const e = new Date(d); e.setHours(...cls.time.split(' - ')[1].split(':'), 0, 0);
           if (e < currentTime) { 
               weeks[weekIdx].t++; cumT++;
@@ -724,7 +785,7 @@ export default function App() {
     for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
 
     return days.map((date, idx) => {
-      if (!date) return <div key={`empty-${idx}`} className="h-14 sm:h-20" />;
+      if (!date) return <div key={`empty-${idx}`} className="h-10 sm:h-20" />;
       const classes = getClassesForDate(date, customEvents, hiddenEvents).filter(c => !c.isBreak);
       const hasClasses = classes.length > 0;
       const isSelected = selectedDay.toDateString() === date.toDateString() && view === 'day';
@@ -739,15 +800,15 @@ export default function App() {
         <div 
           key={date.toISOString()}
           onClick={() => { setSelectedDay(date); setCurrentWeekStart(getMonday(date)); setView('day'); }}
-          className={`h-14 sm:h-20 rounded-2xl p-1.5 flex flex-col items-center sm:items-start justify-start cursor-pointer transition-all active:scale-95 border ${bgClasses}`}
+          className={`h-10 sm:h-20 rounded-xl sm:rounded-2xl p-1 sm:p-1.5 flex flex-col items-center sm:items-start justify-start cursor-pointer transition-all active:scale-95 border ${bgClasses}`}
         >
-          <span className={`text-[11px] sm:text-sm font-black ${isSelected || isToday ? 'text-blue-700' : hasClasses ? 'text-gray-900' : 'text-gray-400'}`}>
+          <span className={`text-[9px] sm:text-sm font-black ${isSelected || isToday ? 'text-blue-700' : hasClasses ? 'text-gray-900' : 'text-gray-400'}`}>
             {date.getDate()}
           </span>
           {hasClasses && (
             <div className="mt-auto flex flex-wrap gap-1 w-full justify-center sm:justify-start px-0.5 pb-0.5">
               {classes.map((c, i) => (
-                <div key={i} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${getDotColor(c.color)}`} />
+                <div key={i} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${getDotColor(c.color)}`} title={c.subject} />
               ))}
             </div>
           )}
@@ -756,43 +817,104 @@ export default function App() {
     });
   };
 
+  const renderClassCard = (cls, idx, date, isToday) => {
+    const classId = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${cls.subject}_${cls.time}`;
+    // Si es evento, no mostramos asistencia ni exámenes vinculados.
+    const status = cls.eventType === 'evento' ? null : attendanceRecords[classId]; 
+    const exam = cls.eventType === 'evento' ? null : getUpcomingExam(cls.subject);
+    const isC = isToday && currentMins >= timeToMins(cls.time.split(' - ')[0]) && currentMins <= timeToMins(cls.time.split(' - ')[1]);
+
+    if (cls.isBreak) {
+      return (
+        <div key={idx} className="border border-stone-200 bg-stone-50/80 p-3 sm:p-5 rounded-[1.2rem] sm:rounded-[2rem] shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-stone-100 transition-colors">
+          <Coffee className="w-5 h-5 sm:w-7 sm:h-7 text-stone-400 mb-1 sm:mb-2 group-hover:scale-110 transition-transform" />
+          <h3 className="font-black text-stone-600 text-[11px] sm:text-[13px] tracking-tight uppercase break-words px-2">{cls.subject}</h3>
+          <div className="mt-1 sm:mt-1.5 space-y-1 text-[9px] sm:text-[10px] font-bold text-stone-400">
+            <div className="flex items-center justify-center gap-1.5"><Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> <span>{cls.time}</span></div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        key={idx} 
+        onClick={() => { 
+          // Solo abrir panel de administración si NO es evento y NO es break
+          if (cls.eventType !== 'evento' && !cls.isBreak) {
+             setSelectedSubjectModal(cls.subject); 
+             setModalTab('attendance'); 
+          }
+        }} 
+        className={`border ${cls.color} p-3 sm:p-5 rounded-[1.2rem] sm:rounded-[2rem] bg-white shadow-sm hover:shadow-md transition-all ${cls.eventType !== 'evento' ? 'cursor-pointer' : ''} flex flex-col relative overflow-hidden active:scale-95 ${isC ? 'ring-2 ring-blue-500' : ''}`}
+      >
+        <div className="flex justify-between items-start gap-2 mb-3 sm:mb-4">
+          <h3 className="font-black text-gray-900 text-xs sm:text-[15px] leading-tight pr-1 tracking-tight flex-1 break-words">{cls.subject}</h3>
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {status && <div className="p-1 rounded-full bg-white shadow-sm">{status === 'present' ? <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" /> : <XCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />}</div>}
+            <button onClick={(e) => { 
+                e.stopPropagation(); 
+                const originalId = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${cls.subject}_${cls.time}`;
+                setEventModalData({
+                    ...cls,
+                    originalId,
+                    originalDateStr: `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`,
+                    formDate: toLocalISODate(date),
+                    startTime: cls.time.split(' - ')[0],
+                    endTime: cls.time.split(' - ')[1],
+                    eventType: cls.eventType || 'materia'
+                });
+            }} className="p-1 sm:p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                <FileEdit className="w-3 h-3 sm:w-4 sm:h-4" />
+            </button>
+          </div>
+        </div>
+        {exam && <div className="mb-3 sm:mb-4 bg-white/80 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl border border-red-100 flex items-center gap-1.5"><AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" /><span className="text-[9px] sm:text-[10px] font-black text-red-700 uppercase tracking-wider">{exam.title} {exam.daysLeft === 0 ? 'HOY' : `${exam.daysLeft}D`}</span></div>}
+        <div className="mt-auto space-y-1.5 sm:space-y-2 text-[10px] sm:text-[11px] font-bold text-gray-500">
+          <div className="flex items-center gap-1.5 sm:gap-2"><Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-300" /> <span>{cls.time}</span></div>
+          <div className="flex items-center gap-1.5 sm:gap-2"><MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-300" /> <span className="text-gray-800">{cls.room}</span></div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }} className="min-h-screen bg-[#F2F2F7] text-[#1C1C1E] relative pb-24 selection:bg-blue-200 antialiased">
       
       {/* TOASTS */}
-      <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur-2xl text-white px-5 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.2)] flex items-center gap-2 transition-all duration-300 z-[100] ${toastMessage ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`}>
-        <CheckCircle2 className="w-5 h-5 text-green-400" />
-        <span className="font-bold text-sm tracking-wide">{toastMessage}</span>
+      <div className={`fixed bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur-2xl text-white px-4 sm:px-5 py-2 sm:py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.2)] flex items-center gap-2 transition-all duration-300 z-[100] ${toastMessage ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`}>
+        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+        <span className="font-bold text-xs sm:text-sm tracking-wide">{toastMessage}</span>
       </div>
 
       {/* WIDGET POMODORO FLOTANTE */}
       {showPomodoro && (
-        <div className="fixed bottom-28 right-5 sm:bottom-10 sm:right-10 bg-white/95 backdrop-blur-3xl border border-white shadow-[0_12px_40px_rgb(0,0,0,0.15)] rounded-[2.5rem] p-6 w-64 z-[90] animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-24 right-4 sm:bottom-10 sm:right-10 bg-white/95 backdrop-blur-3xl border border-white shadow-[0_12px_40px_rgb(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-6 w-56 sm:w-64 z-[90] animate-in slide-in-from-bottom-5 duration-300">
           {isPomoSettingsOpen ? (
             <div className="flex flex-col h-full justify-between">
-              <div className="flex justify-between items-center mb-4"><span className="text-xs font-black uppercase tracking-widest text-gray-400">Temporizador</span></div>
-              <div className="space-y-4 mb-5">
-                <div><label className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1 block ml-1">Estudio (minutos)</label><input type="number" min="1" max="120" value={pomoStudyTime} onChange={e => setPomoStudyTime(Number(e.target.value))} className="w-full bg-[#F2F2F7] text-gray-900 font-bold px-4 py-2.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner" /></div>
-                <div><label className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1 block ml-1">Descanso (minutos)</label><input type="number" min="1" max="60" value={pomoBreakTime} onChange={e => setPomoBreakTime(Number(e.target.value))} className="w-full bg-[#F2F2F7] text-gray-900 font-bold px-4 py-2.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500 shadow-inner" /></div>
+              <div className="flex justify-between items-center mb-4"><span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400">Temporizador</span></div>
+              <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-5">
+                <div><label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1 block ml-1">Estudio (minutos)</label><input type="number" min="1" max="120" value={pomoStudyTime} onChange={e => setPomoStudyTime(Number(e.target.value))} className="w-full bg-[#F2F2F7] text-gray-900 font-bold px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-sm" /></div>
+                <div><label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1 block ml-1">Descanso (minutos)</label><input type="number" min="1" max="60" value={pomoBreakTime} onChange={e => setPomoBreakTime(Number(e.target.value))} className="w-full bg-[#F2F2F7] text-gray-900 font-bold px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500 shadow-inner text-sm" /></div>
                 {!notificationsEnabled && (
-                   <button onClick={requestNotificationPermission} className="mt-2 w-full py-2 bg-yellow-50 text-yellow-700 text-[10px] font-bold rounded-xl border border-yellow-200">Activar Notificaciones</button>
+                   <button onClick={requestNotificationPermission} className="mt-2 w-full py-2 bg-yellow-50 text-yellow-700 text-[9px] sm:text-[10px] font-bold rounded-lg sm:rounded-xl border border-yellow-200">Activar Notificaciones</button>
                 )}
               </div>
-              <button onClick={applyPomoSettings} className="w-full py-3.5 bg-blue-600 text-white rounded-[1.2rem] font-black text-xs shadow-md active:scale-95 transition-all uppercase tracking-widest">Guardar</button>
+              <button onClick={applyPomoSettings} className="w-full py-3 sm:py-3.5 bg-blue-600 text-white rounded-[1rem] sm:rounded-[1.2rem] font-black text-[10px] sm:text-xs shadow-md active:scale-95 transition-all uppercase tracking-widest">Guardar</button>
             </div>
           ) : (
             <>
-              <div className="flex justify-between items-center mb-2"><span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg ${pomoMode === 'study' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{pomoMode === 'study' ? 'Concentración' : 'Descanso'}</span><div className="flex items-center gap-1.5"><button onClick={() => setIsPomoSettingsOpen(true)} className="text-gray-400 hover:text-gray-700 transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"><SlidersHorizontal className="w-4 h-4" /></button><button onClick={() => setShowPomodoro(false)} className="text-gray-400 hover:text-gray-700 transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"><X className="w-4 h-4" /></button></div></div>
-              <div className="relative w-40 h-40 mx-auto my-4 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90 absolute top-0 left-0"><circle cx="80" cy="80" r="74" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-gray-100" /><circle cx="80" cy="80" r="74" strokeWidth="10" fill="transparent" strokeDasharray={2 * Math.PI * 74} strokeDashoffset={(2 * Math.PI * 74) - ((pomoMode === 'study' ? (pomoTimeLeft / (pomoStudyTime * 60)) : (pomoTimeLeft / (pomoBreakTime * 60))) * (2 * Math.PI * 74))} className={`${pomoMode === 'study' ? 'stroke-blue-600' : 'stroke-green-600'} transition-all duration-1000 ease-linear`} strokeLinecap="round" /></svg>
-                <p className="text-4xl font-black tabular-nums text-gray-900 tracking-tighter z-10">{formatPomoTime(pomoTimeLeft)}</p>
+              <div className="flex justify-between items-center mb-2"><span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-1 sm:px-2.5 rounded-lg ${pomoMode === 'study' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{pomoMode === 'study' ? 'Concentración' : 'Descanso'}</span><div className="flex items-center gap-1 sm:gap-1.5"><button onClick={() => setIsPomoSettingsOpen(true)} className="text-gray-400 hover:text-gray-700 transition-colors bg-gray-50 hover:bg-gray-100 p-1.5 sm:p-2 rounded-full"><SlidersHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button><button onClick={() => setShowPomodoro(false)} className="text-gray-400 hover:text-gray-700 transition-colors bg-gray-50 hover:bg-gray-100 p-1.5 sm:p-2 rounded-full"><X className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button></div></div>
+              <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto my-3 sm:my-4 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90 absolute top-0 left-0"><circle cx="50%" cy="50%" r="45%" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" /><circle cx="50%" cy="50%" r="45%" strokeWidth="8" fill="transparent" strokeDasharray={2 * Math.PI * 60} strokeDashoffset={(2 * Math.PI * 60) - ((pomoMode === 'study' ? (pomoTimeLeft / (pomoStudyTime * 60)) : (pomoTimeLeft / (pomoBreakTime * 60))) * (2 * Math.PI * 60))} className={`${pomoMode === 'study' ? 'stroke-blue-600' : 'stroke-green-600'} transition-all duration-1000 ease-linear`} strokeLinecap="round" /></svg>
+                <p className="text-3xl sm:text-4xl font-black tabular-nums text-gray-900 tracking-tighter z-10">{formatPomoTime(pomoTimeLeft)}</p>
               </div>
-              <div className="flex justify-center gap-4 mt-3">
-                 <button onClick={() => setPomoIsActive(!pomoIsActive)} className={`w-12 h-12 flex items-center justify-center rounded-full text-white shadow-lg active:scale-90 transition-all ${pomoIsActive ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                   {pomoIsActive ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current translate-x-[2px]" />}
+              <div className="flex justify-center gap-3 sm:gap-4 mt-2 sm:mt-3">
+                 <button onClick={() => setPomoIsActive(!pomoIsActive)} className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full text-white shadow-lg active:scale-90 transition-all ${pomoIsActive ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                   {pomoIsActive ? <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-current" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current translate-x-[2px]" />}
                  </button>
-                 <button onClick={resetPomodoro} className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-200 transition-colors shadow-sm active:scale-90">
-                   <RotateCcw className="w-5 h-5" />
+                 <button onClick={resetPomodoro} className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-200 transition-colors shadow-sm active:scale-90">
+                   <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
                  </button>
               </div>
             </>
@@ -801,123 +923,178 @@ export default function App() {
       )}
 
       {/* CONTENEDOR PRINCIPAL */}
-      <div className="max-w-7xl mx-auto px-5 py-6 md:px-10 md:py-10 space-y-6">
+      <div className="max-w-7xl mx-auto px-3 py-4 sm:px-5 sm:py-6 md:px-10 md:py-10 space-y-4 sm:space-y-6">
         
         {/* HEADER CON NOMBRE MINIMALISTA */}
-        <header className="bg-white border border-gray-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-[2.5rem] p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all duration-300">
-          <div className="flex items-center gap-5">
-            <div className="hidden sm:flex flex-col items-center justify-between w-16 h-16 bg-[#F8F9FA] rounded-2xl shadow-inner border border-gray-100 overflow-hidden shrink-0">
-              <div className="bg-red-500 w-full text-center py-1 text-[9px] font-black text-white tracking-widest uppercase">{currentShortMonth}</div>
-              <div className="flex-1 flex items-center justify-center text-2xl font-black text-gray-900 pb-0.5">{currentDateNum}</div>
+        <header className="bg-white border border-gray-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-[1.5rem] sm:rounded-[2.5rem] p-4 sm:p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 transition-all duration-300">
+          <div className="flex items-center gap-3 sm:gap-5">
+            <div className="hidden sm:flex flex-col items-center justify-between w-12 h-12 md:w-16 md:h-16 bg-[#F8F9FA] rounded-xl sm:rounded-2xl shadow-inner border border-gray-100 overflow-hidden shrink-0">
+              <div className="bg-red-500 w-full text-center py-0.5 sm:py-1 text-[8px] sm:text-[9px] font-black text-white tracking-widest uppercase">{currentShortMonth}</div>
+              <div className="flex-1 flex items-center justify-center text-xl sm:text-2xl font-black text-gray-900 pb-0.5">{currentDateNum}</div>
             </div>
             <div>
-              <div className="flex items-center gap-2 mb-1.5 opacity-80">
-                <User className="w-3 h-3 text-gray-400" />
-                <p className="text-[9px] font-black text-gray-400 tracking-[0.25em] uppercase">Benjamin Cerda</p>
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-1.5 opacity-80">
+                <User className="w-3 h-3 sm:w-3 text-gray-400" />
+                <p className="text-[8px] sm:text-[9px] font-black text-gray-400 tracking-[0.25em] uppercase">Benjamin Cerda</p>
               </div>
-              <h1 className="text-3xl md:text-5xl font-black tracking-tight text-[#1C1C1E] mb-1.5 leading-none">Mi Horario</h1>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{greeting}</p>
+              <h1 className="text-2xl sm:text-3xl md:text-5xl font-black tracking-tight text-[#1C1C1E] mb-1 sm:mb-1.5 leading-none">Mi Horario</h1>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <p className="text-[9px] sm:text-[10px] font-black text-blue-600 uppercase tracking-widest">{greeting}</p>
                 <span className="hidden sm:inline text-gray-200">|</span>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{fullDateString}</p>
+                <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest">{fullDateString}</p>
               </div>
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <div className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 bg-[#F8F9FA] rounded-xl text-[11px] font-black text-gray-500 border border-gray-200 shadow-inner cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => setShowSettingsModal(true)}>
-              {cloudStatus === 'synced' ? <Cloud className="w-3.5 h-3.5 text-blue-500" /> : <CloudOff className="w-3.5 h-3.5 text-gray-300" />}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full md:w-auto">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-[#F8F9FA] rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-black text-gray-500 border border-gray-200 shadow-inner cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => setShowSettingsModal(true)}>
+              {cloudStatus === 'synced' ? <Cloud className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500" /> : <CloudOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-300" />}
               <span className="uppercase tracking-widest">{cloudStatus === 'synced' ? 'Sincronizado' : 'Desconectado'}</span>
             </div>
             
             {pendingAttendanceClasses.length > 0 && (
-              <button onClick={() => setShowPendingModal(true)} className="p-3 rounded-2xl bg-orange-50 border border-orange-100 text-orange-600 hover:bg-orange-100 shadow-sm active:scale-95 transition-all relative flex items-center gap-2" title="Asistencia Pendiente">
-                <ListTodo className="w-5 h-5" />
-                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Pendientes</span>
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-orange-500 border-2 border-white rounded-full animate-pulse" />
+              <button onClick={() => setShowPendingModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-orange-50 border border-orange-100 text-orange-600 hover:bg-orange-100 shadow-sm active:scale-95 transition-all relative flex items-center gap-1.5 sm:gap-2" title="Asistencia Pendiente">
+                <ListTodo className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Pendientes</span>
+                <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-orange-500 border-2 border-white rounded-full animate-pulse" />
               </button>
             )}
 
-            <button onClick={() => setShowRecycleBinModal(true)} className="p-3 rounded-2xl bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 shadow-sm active:scale-95 transition-all relative" title="Papelera">
-              <Trash2 className="w-5 h-5" />
-              {recycleBin.length > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse" />}
+            <button onClick={() => setShowRecycleBinModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 shadow-sm active:scale-95 transition-all relative" title="Papelera">
+              <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              {recycleBin.length > 0 && <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse" />}
             </button>
             
-            <button onClick={() => setEventModalData({ isNew: true, formDate: toLocalISODate(new Date()), startTime: '08:00', endTime: '09:30', color: colors.cornerstone, subject: '', room: '' })} className="p-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 shadow-sm active:scale-95 transition-all" title="Añadir Evento">
-              <CalendarPlus className="w-5 h-5" />
+            <button onClick={() => setEventModalData({ isNew: true, formDate: toLocalISODate(new Date()), startTime: '08:00', endTime: '09:30', color: colors.cornerstone, subject: '', room: '', eventType: 'evento' })} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 shadow-sm active:scale-95 transition-all" title="Añadir">
+              <CalendarPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
-            <button onClick={() => setShowPomodoro(!showPomodoro)} className="p-3 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-100 shadow-sm active:scale-95 transition-all" title="Pomodoro">
-              <Timer className="w-5 h-5" />
+            <button onClick={() => setShowPomodoro(!showPomodoro)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-100 shadow-sm active:scale-95 transition-all" title="Pomodoro">
+              <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
-            <button onClick={() => setShowVerseModal(true)} className="p-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 shadow-sm active:scale-95 transition-all" title="Versículo Diario">
-              <Sparkles className="w-5 h-5" />
+            <button onClick={() => setShowVerseModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 shadow-sm active:scale-95 transition-all" title="Versículo Diario">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
-            <button onClick={() => setShowTrophiesModal(true)} className="p-3 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 hover:bg-amber-100 shadow-sm active:scale-95 transition-all" title="Mis Trofeos">
-              <Trophy className="w-5 h-5" />
+            <button onClick={() => setShowTrophiesModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 hover:bg-amber-100 shadow-sm active:scale-95 transition-all" title="Mis Trofeos">
+              <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
-            <button onClick={() => setShowSettingsModal(true)} className="p-3 rounded-2xl bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 shadow-sm active:scale-95 transition-all" title="Ajustes">
-              <Settings className="w-5 h-5" />
+            <button onClick={() => setShowSettingsModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 shadow-sm active:scale-95 transition-all" title="Ajustes">
+              <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </header>
 
         {/* --- ESTADÍSTICAS PROPORCIONALES --- */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={<BookOpen className="w-4 h-4"/>} title="Materias" value={stats.totalSubjects} color="text-blue-600" bg="bg-blue-50" onClick={() => setShowSubjectsListModal(true)} />
-          <StatCard icon={<Activity className="w-4 h-4"/>} title="Asistencia" value={`${globalAttendancePct}%`} color={globalAttendancePct < 75 ? "text-red-500" : "text-indigo-600"} bg="bg-indigo-50" onClick={() => setShowGlobalAttendanceModal(true)} />
-          <StatCard icon={<Timer className="w-4 h-4"/>} title="Carga" value={stats.totalHours} unit="hrs" color="text-emerald-600" bg="bg-emerald-50" onClick={() => setShowAcademicLoadModal(true)} />
-          <div className="bg-white p-4 rounded-[1.8rem] border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between gap-3">
-             <div className="flex items-center justify-between"><div className="p-2 bg-rose-50 text-rose-600 rounded-xl"><TrendingUp className="w-4 h-4" /></div><span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{semesterProgress}%</span></div>
-             <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Semestre</p><div className="w-full bg-[#F2F2F7] rounded-full h-2 overflow-hidden shadow-inner"><div className="bg-rose-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${semesterProgress}%` }}></div></div></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <StatCard icon={<BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4"/>} title="Materias" value={stats.totalSubjects} color="text-blue-600" bg="bg-blue-50" onClick={() => setShowSubjectsListModal(true)} />
+          <StatCard icon={<Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4"/>} title="Asistencia" value={`${globalAttendancePct}%`} color={globalAttendancePct < 75 ? "text-red-500" : "text-indigo-600"} bg="bg-indigo-50" onClick={() => setShowGlobalAttendanceModal(true)} />
+          <StatCard icon={<Timer className="w-3.5 h-3.5 sm:w-4 sm:h-4"/>} title="Carga" value={stats.totalHours} unit="hrs" color="text-emerald-600" bg="bg-emerald-50" onClick={() => setShowAcademicLoadModal(true)} />
+          <div className="bg-white p-3 sm:p-4 rounded-[1.2rem] sm:rounded-[1.8rem] border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between gap-2 sm:gap-3">
+              <div className="flex items-center justify-between"><div className="p-2 sm:p-2.5 bg-rose-50 text-rose-600 rounded-[1rem] sm:rounded-[1.1rem]"><TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></div><span className="text-[9px] sm:text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{semesterProgress}%</span></div>
+              <div><p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 sm:mb-1.5">Semestre</p><div className="w-full bg-[#F2F2F7] rounded-full h-1.5 sm:h-2 overflow-hidden shadow-inner"><div className="bg-rose-500 h-1.5 sm:h-2 rounded-full transition-all duration-1000" style={{ width: `${semesterProgress}%` }}></div></div></div>
           </div>
         </div>
 
+        {/* --- PRÓXIMOS EVENTOS --- */}
+        {upcomingEventsList.length > 0 && (
+           <div className="bg-white rounded-[1.5rem] sm:rounded-[2.5rem] p-4 sm:p-6 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-200/80">
+             <div 
+                className="flex items-center justify-between cursor-pointer group select-none"
+                onClick={() => setIsEventsExpanded(!isEventsExpanded)}
+             >
+                <div className="flex items-center gap-2 sm:gap-3">
+                   <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-[1rem] sm:rounded-[1.1rem]"><CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5"/></div>
+                   <h2 className="text-base sm:text-lg font-black text-gray-900 uppercase tracking-tight">Próximos Eventos</h2>
+                   {isEventsExpanded ? <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300 group-hover:text-blue-500 transition-colors" /> : <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />}
+                </div>
+                <span className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-100">{upcomingEventsList.length} pend.</span>
+             </div>
+             
+             <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-in-out ${isEventsExpanded ? 'grid-rows-[1fr] opacity-100 mt-3 sm:mt-4' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                <div className="overflow-hidden">
+                   <div className="flex overflow-x-auto gap-3 sm:gap-4 pb-2 sm:pb-4 snap-x snap-mandatory no-scrollbar -mx-2 px-2">
+                      {upcomingEventsList.map((evt, i) => (
+                         <div 
+                           key={i} 
+                           onClick={() => {
+                               const originalId = `${evt.dateStr}_${evt.subject}_${evt.time}`;
+                               setEventModalData({
+                                   ...evt,
+                                   originalId,
+                                   originalDateStr: evt.dateStr,
+                                   formDate: toLocalISODate(evt.dateObj),
+                                   startTime: evt.time.split(' - ')[0],
+                                   endTime: evt.time.split(' - ')[1],
+                                   eventType: 'evento'
+                               });
+                           }} 
+                           className={`shrink-0 w-[200px] sm:w-[260px] p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[2rem] border ${evt.color} bg-white shadow-sm flex flex-col justify-between snap-start relative overflow-hidden cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all`}
+                         >
+                           <div>
+                             <h3 className="font-black text-sm sm:text-[15px] leading-tight pr-1 tracking-tight text-gray-900 mb-1.5 sm:mb-2">{evt.subject}</h3>
+                             <p className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest opacity-80 mb-3 sm:mb-4 inline-block px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-white/60 shadow-sm border border-white/50">
+                                {jsDays[evt.dateObj.getDay()]} {evt.dateObj.getDate()} {monthNames[evt.dateObj.getMonth()].substring(0,3)}
+                             </p>
+                           </div>
+                           <div className="space-y-1 sm:space-y-1.5 text-[10px] sm:text-[11px] font-bold opacity-75 mt-auto pt-2 sm:pt-3 border-t border-black/5">
+                             <div className="flex items-center gap-1.5 sm:gap-2"><Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> <span>{evt.time}</span></div>
+                             <div className="flex items-center gap-1.5 sm:gap-2"><MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> <span className="truncate">{evt.room}</span></div>
+                           </div>
+                         </div>
+                      ))}
+                   </div>
+                </div>
+             </div>
+           </div>
+        )}
+
         {nextClass && (
-          <div className={`p-5 rounded-[2rem] shadow-[0_2px_15px_rgba(0,0,0,0.02)] border overflow-hidden relative ${classStatus === 'in-progress' ? 'bg-gradient-to-br from-green-50 to-white border-green-200' : 'bg-gradient-to-br from-blue-50 to-white border-blue-200'}`}>
-            {classStatus === 'in-progress' && <div className="absolute bottom-0 left-0 h-1.5 bg-green-500 transition-all duration-1000" style={{ width: `${progressPercent}%` }} />}
-            <div className="flex items-center gap-5 relative z-10">
-              <div className={`p-4 rounded-2xl shrink-0 bg-white shadow-sm border border-gray-100 ${classStatus === 'in-progress' ? 'text-green-600' : 'text-blue-600'}`}><Bell className="w-6 h-6" /></div>
+          <div className={`p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[2rem] shadow-[0_2px_15px_rgba(0,0,0,0.02)] border overflow-hidden relative ${classStatus === 'in-progress' ? 'bg-gradient-to-br from-green-50 to-white border-green-200' : 'bg-gradient-to-br from-blue-50 to-white border-blue-200'}`}>
+            {classStatus === 'in-progress' && <div className="absolute bottom-0 left-0 h-1 sm:h-1.5 bg-green-500 transition-all duration-1000" style={{ width: `${progressPercent}%` }} />}
+            <div className="flex items-center gap-4 sm:gap-5 relative z-10">
+              <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shrink-0 bg-white shadow-sm border border-gray-100 ${classStatus === 'in-progress' ? 'text-green-600' : 'text-blue-600'}`}>
+                 {nextClass.eventType === 'evento' ? <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <Bell className="w-5 h-5 sm:w-6 sm:h-6" />}
+              </div>
               <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start gap-2"><h4 className={`text-[10px] font-black uppercase tracking-widest ${classStatus === 'in-progress' ? 'text-green-700' : 'text-blue-700'}`}>{classStatus === 'in-progress' ? 'En Curso' : 'Próxima'}</h4><span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-white shadow-sm border border-gray-100">{timeRemaining}</span></div>
-                <p className="text-gray-900 font-black mt-1 text-base sm:text-xl truncate tracking-tight">{nextClass.subject}</p>
-                <p className="text-xs font-bold text-gray-400 mt-0.5 flex items-center gap-1"><MapPin className="w-3.5 h-3.5"/> {nextClass.room} <span className="mx-1">•</span> {nextClass.time}</p>
+                <div className="flex justify-between items-start gap-2"><h4 className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${classStatus === 'in-progress' ? 'text-green-700' : 'text-blue-700'}`}>{classStatus === 'in-progress' ? 'En Curso' : 'Próxima'}</h4><span className="text-[9px] sm:text-[10px] font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-white shadow-sm border border-gray-100">{timeRemaining}</span></div>
+                <p className="text-gray-900 font-black mt-0.5 sm:mt-1 text-sm sm:text-xl truncate tracking-tight">{nextClass.subject}</p>
+                <p className="text-[10px] sm:text-xs font-bold text-gray-400 mt-0.5 flex items-center gap-1"><MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5"/> {nextClass.room} <span className="mx-0.5 sm:mx-1">•</span> {nextClass.time}</p>
               </div>
             </div>
           </div>
         )}
 
         {/* --- NAVEGADOR DE FECHA --- */}
-        <div className="bg-white rounded-[1.8rem] p-2.5 border border-gray-200 shadow-[0_4px_15px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="bg-white rounded-[1.2rem] sm:rounded-[1.8rem] p-1.5 sm:p-2.5 border border-gray-200 shadow-[0_4px_15px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
-            <div className="flex items-center gap-1.5 bg-[#F2F2F7] p-1 rounded-2xl border border-gray-200/60 shadow-inner">
-              <button onClick={prevTime} className="p-2.5 rounded-xl bg-white text-gray-600 shadow-sm border border-gray-100 active:scale-90 transition-all"><ChevronLeft className="w-4 h-4" /></button>
-              <button onClick={goToToday} className="px-5 py-2.5 rounded-xl bg-white text-[11px] font-black flex items-center gap-2 text-gray-900 shadow-sm border border-gray-100 active:scale-90 transition-all uppercase tracking-widest">Hoy</button>
-              <button onClick={nextTime} className="p-2.5 rounded-xl bg-white text-gray-600 shadow-sm border border-gray-100 active:scale-90 transition-all"><ChevronRight className="w-4 h-4" /></button>
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-[#F2F2F7] p-1 rounded-xl sm:rounded-2xl border border-gray-200/60 shadow-inner">
+              <button onClick={prevTime} className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-white text-gray-600 shadow-sm border border-gray-100 active:scale-90 transition-all"><ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
+              <button onClick={goToToday} className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg sm:rounded-xl bg-white text-[10px] sm:text-[11px] font-black flex items-center gap-1 sm:gap-2 text-gray-900 shadow-sm border border-gray-100 active:scale-90 transition-all uppercase tracking-widest">Hoy</button>
+              <button onClick={nextTime} className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-white text-gray-600 shadow-sm border border-gray-100 active:scale-90 transition-all"><ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
             </div>
-            <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest hidden sm:inline ml-4">{navTitle}</span>
+            <span className="text-[10px] sm:text-[11px] font-black text-gray-500 uppercase tracking-widest hidden sm:inline ml-2 sm:ml-4">{navTitle}</span>
           </div>
-          <div className="flex bg-[#F2F2F7] p-1.5 rounded-2xl w-full sm:w-auto shadow-inner border border-gray-200/60">
+          <div className="flex bg-[#F2F2F7] p-1 sm:p-1.5 rounded-xl sm:rounded-2xl w-full sm:w-auto shadow-inner border border-gray-200/60">
             {['day', 'week', 'month'].map(v => (
-              <button key={v} onClick={() => setView(v)} className={`flex-1 sm:px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === v ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.1)] text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}>{v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}</button>
+              <button key={v} onClick={() => setView(v)} className={`flex-1 sm:px-6 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg sm:rounded-xl transition-all ${view === v ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.1)] text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}>{v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}</button>
             ))}
           </div>
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest sm:hidden">{navTitle}</span>
+          <span className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest sm:hidden pb-1">{navTitle}</span>
         </div>
 
         {/* --- VISTAS --- */}
         {view === 'month' ? (
-          <div className="bg-white rounded-[2.5rem] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-200/80 animate-in fade-in duration-500">
-             <div className="grid grid-cols-7 gap-2 mb-6">
-                {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (<div key={d} className="text-center text-xs font-black text-gray-300 uppercase tracking-widest">{d}</div>))}
+          <div className="bg-white rounded-[1.5rem] sm:rounded-[2.5rem] p-3 sm:p-6 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-200/80 animate-in fade-in duration-500">
+             <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-3 sm:mb-6">
+                {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (<div key={d} className="text-center text-[10px] sm:text-xs font-black text-gray-300 uppercase tracking-widest">{d}</div>))}
              </div>
-             <div className="grid grid-cols-7 gap-3 sm:gap-4">{renderMonthDays()}</div>
+             <div className="grid grid-cols-7 gap-1.5 sm:gap-3 lg:gap-4">{renderMonthDays()}</div>
           </div>
         ) : (
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 ${view === 'week' ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-1'}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 lg:gap-6 ${view === 'week' ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-1'}`}>
             {weekDaysArray.map((date) => {
               if (view === 'week' && date.getDay() === 0) return null; // Ocultar domingo en vista semanal
               if (view === 'day' && date.toDateString() !== selectedDay.toDateString()) return null;
@@ -925,66 +1102,43 @@ export default function App() {
               const classes = getClassesForDate(date, customEvents, hiddenEvents);
               const isToday = date.toDateString() === currentTime.toDateString();
               
-              // Lógica corregida para no esconder días vacíos si estamos en vista DÍA en celular
               const hideOnMobile = view === 'week' && classes.length === 0 && !isToday;
 
+              // Separamos Eventos de Materias/Ventanas
+              const eventosList = classes.filter(c => c.eventType === 'evento');
+              const materiasList = classes.filter(c => c.eventType !== 'evento');
+
               return (
-                <div key={date.toISOString()} className={`flex flex-col gap-4 ${hideOnMobile ? 'hidden lg:flex' : ''} ${isToday && view === 'week' ? 'bg-blue-50/40 rounded-[2.5rem] p-4 -m-4 ring-1 ring-blue-200/50' : ''}`}>
-                  <h2 className="text-sm font-black text-gray-900 pb-2.5 border-b border-gray-200/60 flex items-center justify-between sticky top-0 z-10">
+                <div key={date.toISOString()} className={`flex flex-col gap-3 sm:gap-4 ${hideOnMobile ? 'hidden lg:flex' : ''} ${isToday && view === 'week' ? 'bg-blue-50/40 rounded-[1.5rem] sm:rounded-[2.5rem] p-3 sm:p-4 -m-3 sm:-m-4 ring-1 ring-blue-200/50' : ''}`}>
+                  <h2 className="text-xs sm:text-sm font-black text-gray-900 pb-2 sm:pb-2.5 border-b border-gray-200/60 flex items-center justify-between sticky top-0 z-10">
                     <span className="uppercase tracking-widest">{jsDays[date.getDay()]} <span className="text-gray-400 ml-1 font-bold">{date.getDate()}</span></span>
-                    {isToday && <span className="text-[8px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-md shadow-sm uppercase">Actual</span>}
+                    {isToday && <span className="text-[7px] sm:text-[8px] font-black bg-blue-600 text-white px-1.5 sm:px-2 py-0.5 rounded-md shadow-sm uppercase">Actual</span>}
                   </h2>
-                  <div className="flex flex-col gap-4">
-                    {classes.length > 0 ? (
-                      classes.map((cls, idx) => {
-                        const classId = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${cls.subject}_${cls.time}`;
-                        const status = attendanceRecords[classId]; 
-                        const exam = getUpcomingExam(cls.subject);
-                        const isC = isToday && currentMins >= timeToMins(cls.time.split(' - ')[0]) && currentMins <= timeToMins(cls.time.split(' - ')[1]);
+                  <div className="flex flex-col gap-3 sm:gap-4">
+                    
+                    {eventosList.length > 0 && (
+                      <div className="flex flex-col gap-2.5 sm:gap-3 mb-1">
+                        <h3 className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1.5 opacity-80">
+                          <CalendarIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3"/> Eventos Diarios
+                        </h3>
+                        {eventosList.map((cls, idx) => renderClassCard(cls, `evt-${idx}`, date, isToday))}
+                      </div>
+                    )}
 
-                        if (cls.isBreak) {
-                          return (
-                            <div key={idx} className="border border-stone-200 bg-stone-50/80 p-4 sm:p-5 rounded-[2rem] shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-stone-100 transition-colors">
-                              <Coffee className="w-7 h-7 text-stone-400 mb-2 group-hover:scale-110 transition-transform" />
-                              <h3 className="font-black text-stone-600 text-[13px] tracking-tight uppercase break-words px-2">{cls.subject}</h3>
-                              <div className="mt-1.5 space-y-1 text-[10px] font-bold text-stone-400">
-                                <div className="flex items-center justify-center gap-1.5"><Clock className="w-3.5 h-3.5" /> <span>{cls.time}</span></div>
-                              </div>
-                            </div>
-                          );
-                        }
+                    {materiasList.length > 0 && (
+                      <div className="flex flex-col gap-3 sm:gap-4">
+                        {eventosList.length > 0 && (
+                          <h3 className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1.5 mt-1.5 sm:mt-2 opacity-80">
+                            <BookOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3"/> Clases Regulares
+                          </h3>
+                        )}
+                        {materiasList.map((cls, idx) => renderClassCard(cls, `mat-${idx}`, date, isToday))}
+                      </div>
+                    )}
 
-                        return (
-                          <div key={idx} onClick={() => { setSelectedSubjectModal(cls.subject); setModalTab('attendance'); }} className={`border ${cls.color} p-4 sm:p-5 rounded-[2rem] bg-white shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col relative overflow-hidden active:scale-95 ${isC ? 'ring-2 ring-blue-500' : ''}`}>
-                            <div className="flex justify-between items-start gap-2 mb-4">
-                              <h3 className="font-black text-gray-900 text-sm sm:text-[15px] leading-tight pr-1 tracking-tight flex-1 break-words">{cls.subject}</h3>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {status && <div className="p-1 rounded-full bg-white shadow-sm">{status === 'present' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}</div>}
-                                <button onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    const originalId = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${cls.subject}_${cls.time}`;
-                                    setEventModalData({
-                                        ...cls,
-                                        originalId,
-                                        originalDateStr: `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`,
-                                        formDate: toLocalISODate(date),
-                                        startTime: cls.time.split(' - ')[0],
-                                        endTime: cls.time.split(' - ')[1]
-                                    });
-                                }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                    <FileEdit className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                            {exam && <div className="mb-4 bg-white/80 p-2.5 rounded-2xl border border-red-100 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /><span className="text-[10px] font-black text-red-700 uppercase tracking-wider">{exam.title} {exam.daysLeft === 0 ? 'HOY' : `${exam.daysLeft}D`}</span></div>}
-                            <div className="mt-auto space-y-2 text-[11px] font-bold text-gray-500">
-                              <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-gray-300" /> <span>{cls.time}</span></div>
-                              <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-gray-300" /> <span className="text-gray-800">{cls.room}</span></div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (<div className={`h-24 rounded-[2rem] border border-dashed border-gray-200 bg-white/40 flex items-center justify-center text-[10px] font-black text-gray-300 uppercase tracking-widest`}>Sin Clases</div>)}
+                    {classes.length === 0 && (
+                      <div className={`h-20 sm:h-24 rounded-[1.2rem] sm:rounded-[2rem] border border-dashed border-gray-200 bg-white/40 flex items-center justify-center text-[9px] sm:text-[10px] font-black text-gray-300 uppercase tracking-widest`}>Sin Clases</div>
+                    )}
                   </div>
                 </div>
               );
@@ -1035,39 +1189,39 @@ export default function App() {
 
 function RecycleBinModal({ onClose, items, onRestore, onEmpty, onPermDelete }) {
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[150] p-5 animate-in fade-in duration-300">
-      <div className="bg-[#F2F2F7] w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden border border-white flex flex-col">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 className="w-5 h-5"/></div>
-            <h3 className="font-black text-xl uppercase tracking-tight">Papelera</h3>
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[150] p-4 sm:p-5 animate-in fade-in duration-300">
+      <div className="bg-[#F2F2F7] w-full max-w-md rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white flex flex-col">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-red-50 text-red-500 rounded-lg sm:rounded-xl"><Trash2 className="w-4 h-4 sm:w-5 sm:h-5"/></div>
+            <h3 className="font-black text-lg sm:text-xl uppercase tracking-tight">Papelera</h3>
           </div>
-          <button onClick={onClose} className="p-2.5 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-2 sm:p-2.5 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
         </div>
         
-        <div className="p-6 overflow-y-auto max-h-[60vh] space-y-3">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[60vh] space-y-2 sm:space-y-3">
           {items.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase tracking-widest">
+            <div className="text-center py-8 sm:py-10 text-gray-400 font-bold text-[10px] sm:text-xs uppercase tracking-widest">
               Papelera Vacía
             </div>
           ) : (
             items.map((item, idx) => (
-              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center gap-4">
+              <div key={idx} className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="font-black text-gray-900 truncate">{item.subject}</p>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
-                    {item.isCustom ? 'Evento' : 'Clase Fija'} • {item.startTime || item.time.split(' - ')[0]}
+                  <p className="font-black text-sm sm:text-base text-gray-900 truncate">{item.subject}</p>
+                  <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5 sm:mt-1">
+                    {item.isCustom ? (item.eventType === 'evento' ? 'Evento' : 'Materia Custom') : 'Clase Fija'} • {item.startTime || item.time.split(' - ')[0]}
                   </p>
-                  <p className="text-[9px] text-red-400 mt-1 font-bold">
+                  <p className="text-[8px] sm:text-[9px] text-red-400 mt-0.5 sm:mt-1 font-bold">
                     Eliminado: {new Date(item.deletedAt).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => onRestore(item)} className="p-2.5 bg-gray-50 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors" title="Restaurar">
-                    <RotateCcw className="w-4 h-4" />
+                <div className="flex gap-1.5 sm:gap-2">
+                  <button onClick={() => onRestore(item)} className="p-2 sm:p-2.5 bg-gray-50 text-blue-600 rounded-lg sm:rounded-xl hover:bg-blue-50 transition-colors" title="Restaurar">
+                    <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
-                  <button onClick={() => onPermDelete(item)} className="p-2.5 bg-gray-50 text-red-500 rounded-xl hover:bg-red-50 transition-colors" title="Eliminar Permanentemente">
-                    <X className="w-4 h-4" />
+                  <button onClick={() => onPermDelete(item)} className="p-2 sm:p-2.5 bg-gray-50 text-red-500 rounded-lg sm:rounded-xl hover:bg-red-50 transition-colors" title="Eliminar Permanentemente">
+                    <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
                 </div>
               </div>
@@ -1076,8 +1230,8 @@ function RecycleBinModal({ onClose, items, onRestore, onEmpty, onPermDelete }) {
         </div>
         
         {items.length > 0 && (
-          <div className="p-6 pt-0 bg-[#F2F2F7]">
-            <button onClick={onEmpty} className="w-full py-4 bg-red-100 text-red-600 rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest hover:bg-red-200 transition-colors shadow-sm active:scale-95 transition-transform">
+          <div className="p-4 sm:p-6 pt-0 bg-[#F2F2F7]">
+            <button onClick={onEmpty} className="w-full py-3 sm:py-4 bg-red-100 text-red-600 rounded-[1rem] sm:rounded-[1.2rem] font-black text-[9px] sm:text-[10px] uppercase tracking-widest hover:bg-red-200 transition-colors shadow-sm active:scale-95 transition-transform">
               Vaciar Papelera
             </button>
           </div>
@@ -1094,64 +1248,72 @@ function EventEditorModal({ data, onClose, onSave, onDelete }) {
   const [endTime, setEndTime] = useState(data.endTime || '09:30');
   const [room, setRoom] = useState(data.room || '');
   const [color, setColor] = useState(data.color || colors.cornerstone);
+  
+  const [eventType, setEventType] = useState(data.eventType || (data.isNew ? 'evento' : 'materia'));
 
   const handleSave = (e) => {
     e.preventDefault();
-    onSave({ ...data, subject, formDate, startTime, endTime, room, color });
+    onSave({ ...data, subject, formDate, startTime, endTime, room, color, eventType });
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[150] p-5 animate-in fade-in duration-300">
-      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[3rem] shadow-2xl overflow-hidden border border-white flex flex-col">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white">
-          <h3 className="font-black text-xl uppercase tracking-tight">{data.isNew ? 'Nuevo Evento' : 'Editar Evento'}</h3>
-          <button onClick={onClose} className="p-2.5 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[150] p-4 sm:p-5 animate-in fade-in duration-300">
+      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white flex flex-col">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white">
+          <h3 className="font-black text-lg sm:text-xl uppercase tracking-tight">{data.isNew ? 'Añadir' : 'Editar'}</h3>
+          <button onClick={onClose} className="p-2 sm:p-2.5 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
         </div>
         
-        <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto max-h-[60vh]">
+        <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto max-h-[65vh]">
+          {/* Selector Evento / Materia */}
+          <div className="flex bg-gray-200/60 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl w-full shadow-inner">
+             <button type="button" onClick={() => setEventType('evento')} className={`flex-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg sm:rounded-xl transition-all ${eventType === 'evento' ? 'bg-white shadow-md text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Evento</button>
+             <button type="button" onClick={() => setEventType('materia')} className={`flex-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg sm:rounded-xl transition-all ${eventType === 'materia' ? 'bg-white shadow-md text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Materia</button>
+          </div>
+
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nombre</label>
-            <input required type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Ayudantía Cálculo" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nombre</label>
+            <input required type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={eventType === 'evento' ? "Ej: Ayudantía Cálculo" : "Ej: Cálculo II"} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 bg-white border border-gray-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Fecha</label>
-            <input required type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Fecha</label>
+            <input required type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 bg-white border border-gray-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3 sm:gap-4">
             <div className="flex-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Inicio</label>
-              <input required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Inicio</label>
+              <input required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 bg-white border border-gray-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Fin</label>
-              <input required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Fin</label>
+              <input required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 bg-white border border-gray-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Ubicación</label>
-            <input type="text" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Sala, Link, etc." className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Ubicación</label>
+            <input type="text" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Sala, Link, etc." className="w-full px-3 py-2.5 sm:px-4 sm:py-3 bg-white border border-gray-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Color de Etiqueta</label>
-            <div className="flex gap-2 flex-wrap">
+            <label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 sm:mb-2">Color de Etiqueta</label>
+            <div className="flex gap-1.5 sm:gap-2 flex-wrap">
               {Object.values(colors).map((c, i) => (
                 <div 
                   key={i} 
                   onClick={() => setColor(c)} 
-                  className={`w-8 h-8 rounded-full cursor-pointer transition-transform ${color === c ? 'scale-110 shadow-md ring-2 ring-offset-2 ring-gray-800' : 'hover:scale-105 opacity-80'} ${c.split(' ')[0].replace('100', '500')}`}
+                  className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full cursor-pointer transition-transform ${color === c ? 'scale-110 shadow-md ring-2 ring-offset-2 ring-gray-800' : 'hover:scale-105 opacity-80'} ${c.split(' ')[0].replace('100', '500').replace('gray-100','gray-500')}`}
                 />
               ))}
             </div>
           </div>
         </form>
         
-        <div className="p-6 pt-0 flex gap-3 mt-4 bg-[#F2F2F7]">
+        <div className="p-4 sm:p-6 pt-0 flex gap-2 sm:gap-3 mt-2 sm:mt-4 bg-[#F2F2F7]">
           {!data.isNew && (
-            <button type="button" onClick={() => onDelete(data)} className="px-5 py-4 bg-red-100 text-red-600 rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest hover:bg-red-200 transition-colors shadow-sm">
+            <button type="button" onClick={() => onDelete(data)} className="px-4 py-3 sm:px-5 sm:py-4 bg-red-100 text-red-600 rounded-[1rem] sm:rounded-[1.2rem] font-black text-[9px] sm:text-[10px] uppercase tracking-widest hover:bg-red-200 transition-colors shadow-sm">
               Eliminar
             </button>
           )}
-          <button type="button" onClick={handleSave} className="flex-1 py-4 bg-gray-900 text-white rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-transform">
+          <button type="button" onClick={handleSave} className="flex-1 py-3 sm:py-4 bg-gray-900 text-white rounded-[1rem] sm:rounded-[1.2rem] font-black text-[9px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-transform">
             Guardar
           </button>
         </div>
@@ -1162,21 +1324,21 @@ function EventEditorModal({ data, onClose, onSave, onDelete }) {
 
 function DailyVerseModal({ onClose, verse }) {
   return (
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[150] p-5 animate-in zoom-in-95 duration-300">
-      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[3rem] shadow-2xl overflow-hidden border border-white">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white">
-           <h3 className="font-black text-xl uppercase flex items-center gap-3 text-rose-600"><Sparkles className="w-5 h-5 fill-current opacity-40" /> Inspiración Diaria</h3>
-           <button onClick={onClose} className="p-2.5 bg-gray-50 text-gray-400 rounded-full hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4 sm:p-5 animate-in zoom-in-95 duration-300">
+      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white">
+           <h3 className="font-black text-lg sm:text-xl uppercase flex items-center gap-2 sm:gap-3 text-rose-600"><Sparkles className="w-4 h-4 sm:w-5 sm:h-5 fill-current opacity-40" /> Inspiración</h3>
+           <button onClick={onClose} className="p-2 sm:p-2.5 bg-gray-50 text-gray-400 rounded-full hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
         </div>
-        <div className="p-8 text-center bg-white m-5 rounded-[2rem] shadow-sm border border-gray-100 relative overflow-hidden">
-           <Quote className="w-10 h-10 text-rose-100 mx-auto mb-4 absolute top-4 left-4 opacity-50" />
-           <p className="text-lg sm:text-xl font-black text-gray-800 leading-snug mb-6 relative z-10">"{verse?.text}"</p>
-           <div className="inline-block bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 shadow-inner">
-             <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">{verse?.ref}</p>
+        <div className="p-6 sm:p-8 text-center bg-white m-4 sm:m-5 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm border border-gray-100 relative overflow-hidden">
+           <Quote className="w-8 h-8 sm:w-10 sm:h-10 text-rose-100 mx-auto mb-3 sm:mb-4 absolute top-3 left-3 sm:top-4 sm:left-4 opacity-50" />
+           <p className="text-base sm:text-xl font-black text-gray-800 leading-snug mb-5 sm:mb-6 relative z-10">"{verse?.text}"</p>
+           <div className="inline-block bg-rose-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl border border-rose-100 shadow-inner">
+             <p className="text-[9px] sm:text-[10px] font-black text-rose-600 uppercase tracking-widest">{verse?.ref}</p>
            </div>
         </div>
-        <div className="px-5 pb-5">
-          <button onClick={onClose} className="w-full py-4 bg-gray-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md">Comenzar mi día</button>
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+          <button onClick={onClose} className="w-full py-3 sm:py-4 bg-gray-900 text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md">Comenzar mi día</button>
         </div>
       </div>
     </div>
@@ -1204,46 +1366,46 @@ function SubjectModal({ subject, initialTab, onClose, attendanceRecords, grades,
 
   return (
     <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
-      <div className="bg-[#F2F2F7] w-full max-w-md rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col h-[94vh] sm:h-[720px] border border-white animate-in slide-in-from-bottom-8">
-        <div className="px-8 pt-8 pb-4 flex justify-between items-start shrink-0">
-          <div className="pr-4"><h3 className="font-black text-2xl text-gray-900 tracking-tighter leading-none">{subject}</h3><p className="text-[10px] text-blue-600 mt-2 font-black tracking-widest uppercase">Admin Ramo</p></div>
-          <button onClick={onClose} className="p-3 rounded-full bg-white hover:bg-gray-100 text-gray-400 shadow-sm transition-all"><X className="w-5 h-5" /></button>
+      <div className="bg-[#F2F2F7] w-full max-w-md rounded-t-[2rem] sm:rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col h-[90vh] sm:h-[720px] border border-white animate-in slide-in-from-bottom-8">
+        <div className="px-5 pt-5 pb-3 sm:px-8 sm:pt-8 sm:pb-4 flex justify-between items-start shrink-0">
+          <div className="pr-4"><h3 className="font-black text-xl sm:text-2xl text-gray-900 tracking-tighter leading-none">{subject}</h3><p className="text-[9px] sm:text-[10px] text-blue-600 mt-1.5 sm:mt-2 font-black tracking-widest uppercase">Admin Ramo</p></div>
+          <button onClick={onClose} className="p-2 sm:p-3 rounded-full bg-white hover:bg-gray-100 text-gray-400 shadow-sm transition-all"><X className="w-4 h-4 sm:w-5 sm:h-5" /></button>
         </div>
         
-        <div className="px-8 pb-2 flex gap-5 overflow-x-auto no-scrollbar shrink-0">
+        <div className="px-5 sm:px-8 pb-1 sm:pb-2 flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar shrink-0">
            {['attendance', 'grades', 'exams', 'links', 'notes'].map(t => (
-             <button key={t} onClick={() => setTab(t)} className={`pb-3 text-xs font-black uppercase tracking-widest border-b-[3px] transition-all ${tab === t ? 'border-blue-600 text-gray-900' : 'border-transparent text-gray-400'}`}>
+             <button key={t} onClick={() => setTab(t)} className={`pb-2 sm:pb-3 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b-[2px] sm:border-b-[3px] transition-all ${tab === t ? 'border-blue-600 text-gray-900' : 'border-transparent text-gray-400'}`}>
                {t === 'attendance' ? 'Asis' : t === 'grades' ? 'Notas' : t === 'exams' ? 'Exam' : t === 'links' ? 'Links' : 'Apuntes'}
              </button>
            ))}
         </div>
         
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
           {tab === 'attendance' && (
-            <div className="space-y-4">
-              <div className="bg-white p-6 rounded-[2rem] border border-gray-200 shadow-sm text-center relative overflow-hidden">
-                <div className={`absolute bottom-0 left-0 w-full h-1.5 transition-all ${attendancePct < 75 ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                <p className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Asistencia Total</p>
-                <p className={`text-6xl font-black tracking-tighter ${attendancePct < 75 ? 'text-red-500' : 'text-gray-900'}`}>{attendancePct}%</p>
+            <div className="space-y-3 sm:space-y-4">
+              <div className="bg-white p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 shadow-sm text-center relative overflow-hidden">
+                <div className={`absolute bottom-0 left-0 w-full h-1 sm:h-1.5 transition-all ${attendancePct < 75 ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase mb-1 sm:mb-2 tracking-widest">Asistencia Total</p>
+                <p className={`text-5xl sm:text-6xl font-black tracking-tighter ${attendancePct < 75 ? 'text-red-500' : 'text-gray-900'}`}>{attendancePct}%</p>
               </div>
               
-              <div className="space-y-3 mt-5">
-                <h4 className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Historial de Clases</h4>
+              <div className="space-y-2.5 sm:space-y-3 mt-4 sm:mt-5">
+                <h4 className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Historial de Clases</h4>
                 {subjectRecords.map(record => (
-                   <div key={record.id} className="bg-white p-4 rounded-[1.5rem] flex justify-between items-center shadow-sm border border-gray-100">
+                   <div key={record.id} className="bg-white p-3 sm:p-4 rounded-[1.2rem] sm:rounded-[1.5rem] flex justify-between items-center shadow-sm border border-gray-100">
                      <div>
-                        <p className="text-sm font-bold text-gray-800">{record.dateStr}</p>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{record.time}</p>
+                        <p className="text-xs sm:text-sm font-bold text-gray-800">{record.dateStr}</p>
+                        <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{record.time}</p>
                      </div>
                      <button
                         onClick={() => recordAttendance(record.id, record.status === 'present' ? 'absent' : 'present')}
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${record.status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${record.status === 'present' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                      >
                         {record.status === 'present' ? 'Asistí' : 'Falté'}
                      </button>
                    </div>
                 ))}
-                {subjectRecords.length === 0 && <p className="text-center text-xs font-bold text-gray-400 uppercase p-6">Aún no hay registros guardados.</p>}
+                {subjectRecords.length === 0 && <p className="text-center text-[10px] sm:text-xs font-bold text-gray-400 uppercase p-4 sm:p-6">Aún no hay registros guardados.</p>}
               </div>
             </div>
           )}
@@ -1251,60 +1413,59 @@ function SubjectModal({ subject, initialTab, onClose, attendanceRecords, grades,
           {tab === 'grades' && (() => {
             const { avg, totalWeight, requiredToPass } = calculateGradesStats(subject);
             return (
-              <div className="space-y-5">
-                <div className="bg-white p-7 rounded-[2.5rem] border border-gray-200 shadow-sm">
-                  <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-4">
+              <div className="space-y-4 sm:space-y-5">
+                <div className="bg-white p-5 sm:p-7 rounded-[1.5rem] sm:rounded-[2.5rem] border border-gray-200 shadow-sm">
+                  <div className="flex justify-between items-center pb-3 sm:pb-4 border-b border-gray-100 mb-3 sm:mb-4">
                     <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Promedio</p>
-                      <p className={`text-6xl font-black tracking-tighter mt-1 ${parseFloat(avg) < 4 ? 'text-red-500' : 'text-blue-600'}`}>{totalWeight > 0 ? avg : '--'}</p>
+                      <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest">Promedio</p>
+                      <p className={`text-4xl sm:text-6xl font-black tracking-tighter mt-0.5 sm:mt-1 ${parseFloat(avg) < 4 ? 'text-red-500' : 'text-blue-600'}`}>{totalWeight > 0 ? avg : '--'}</p>
                     </div>
                     <div className="text-right uppercase">
-                      <p className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">{totalWeight}% listo</p>
+                      <p className="text-[9px] sm:text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">{totalWeight}% listo</p>
                     </div>
                   </div>
                   {totalWeight > 0 && totalWeight < 100 && (
-                    <p className="text-[11px] font-bold text-gray-800 leading-relaxed px-1">Necesitas un <span className="text-blue-600 font-black">{requiredToPass > 7 ? 'Imposible' : requiredToPass < 1 ? '1.0' : requiredToPass.toFixed(1)}</span> en el resto del ramo para aprobar.</p>
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-800 leading-relaxed px-1">Necesitas un <span className="text-blue-600 font-black">{requiredToPass > 7 ? 'Imposible' : requiredToPass < 1 ? '1.0' : requiredToPass.toFixed(1)}</span> en el resto del ramo para aprobar.</p>
                   )}
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-2.5 sm:space-y-3">
                   {(grades[subject] || []).map((g) => (
-                    <div key={g.id} className="bg-white p-5 rounded-[1.8rem] flex justify-between items-center shadow-sm border border-gray-100">
-                      <div className="flex flex-col"><span className="font-black text-sm text-gray-900 tracking-tight">{g.name}</span><span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{g.weight}%</span></div>
-                      <div className="flex items-center gap-4"><span className={`text-2xl font-black ${g.grade < 4 ? 'text-red-500' : 'text-gray-900'}`}>{g.grade.toFixed(1)}</span><button onClick={() => deleteGrade(subject, g.id)} className="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100"><Trash2 className="w-4 h-4" /></button></div>
+                    <div key={g.id} className="bg-white p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[1.8rem] flex justify-between items-center shadow-sm border border-gray-100">
+                      <div className="flex flex-col"><span className="font-black text-xs sm:text-sm text-gray-900 tracking-tight">{g.name}</span><span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 sm:mt-1">{g.weight}%</span></div>
+                      <div className="flex items-center gap-3 sm:gap-4"><span className={`text-xl sm:text-2xl font-black ${g.grade < 4 ? 'text-red-500' : 'text-gray-900'}`}>{g.grade.toFixed(1)}</span><button onClick={() => deleteGrade(subject, g.id)} className="p-1.5 sm:p-2 text-red-500 bg-red-50 rounded-lg sm:rounded-xl hover:bg-red-100"><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button></div>
                     </div>
                   ))}
                 </div>
 
-                <div className="bg-white p-5 rounded-[2rem] border border-gray-200 space-y-3">
-                  <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Nueva Nota</p>
+                <div className="bg-white p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 space-y-3">
+                  <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase ml-1">Nueva Nota</p>
                   <div className="flex gap-2">
-                    <input type="text" value={gradeName} onChange={e=>setGradeName(e.target.value)} placeholder="Ej: Certamen 1" className="flex-1 bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
-                    <input type="number" step="0.1" value={gradeVal} onChange={e=>setGradeVal(e.target.value)} placeholder="7.0" className="w-16 bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
-                    <input type="number" value={gradeWeight} onChange={e=>setGradeWeight(e.target.value)} placeholder="%" className="w-16 bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
+                    <input type="text" value={gradeName} onChange={e=>setGradeName(e.target.value)} placeholder="Ej: Certamen 1" className="flex-1 bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
+                    <input type="number" step="0.1" value={gradeVal} onChange={e=>setGradeVal(e.target.value)} placeholder="7.0" className="w-14 sm:w-16 bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
+                    <input type="number" value={gradeWeight} onChange={e=>setGradeWeight(e.target.value)} placeholder="%" className="w-14 sm:w-16 bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
                   </div>
-                  <button onClick={() => { addGrade(subject, gradeName, gradeVal, gradeWeight); setGradeName(''); setGradeVal(''); setGradeWeight(''); }} className="w-full py-4 bg-gray-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Guardar Nota</button>
+                  <button onClick={() => { addGrade(subject, gradeName, gradeVal, gradeWeight); setGradeName(''); setGradeVal(''); setGradeWeight(''); }} className="w-full py-3 sm:py-4 bg-gray-900 text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Guardar Nota</button>
                 </div>
               </div>
             );
           })()}
 
           {tab === 'exams' && (
-            <div className="space-y-5">
-               <div className="bg-white p-6 rounded-[2rem] border border-gray-200 space-y-3">
-                  <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Nuevo Examen</p>
-                  {/* Contenedor FLEX para alinear los inputs lado a lado */}
+            <div className="space-y-4 sm:space-y-5">
+               <div className="bg-white p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 space-y-3">
+                  <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase ml-1">Nuevo Examen</p>
                   <div className="flex gap-2">
-                    <input type="text" value={examTitle} onChange={e=>setExamTitle(e.target.value)} placeholder="Ej: Solemne 1" className="flex-1 w-1/2 bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
-                    <input type="date" value={examDate} onChange={e=>setExamDate(e.target.value)} className="flex-1 w-1/2 bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
+                    <input type="text" value={examTitle} onChange={e=>setExamTitle(e.target.value)} placeholder="Ej: Solemne 1" className="flex-1 w-1/2 bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
+                    <input type="date" value={examDate} onChange={e=>setExamDate(e.target.value)} className="flex-1 w-1/2 bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
                   </div>
-                  <button onClick={() => { addExam(subject, examTitle, examDate); setExamTitle(''); setExamDate(''); }} className="w-full py-4 mt-2 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Agendar Examen</button>
+                  <button onClick={() => { addExam(subject, examTitle, examDate); setExamTitle(''); setExamDate(''); }} className="w-full py-3 sm:py-4 mt-2 bg-blue-600 text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Agendar Examen</button>
                </div>
-               <div className="space-y-3">
+               <div className="space-y-2.5 sm:space-y-3">
                   {(exams[subject] || []).map((e) => (
-                    <div key={e.id} className="bg-white p-5 rounded-[1.8rem] flex justify-between items-center shadow-sm border border-gray-100">
-                      <div className="flex flex-col"><span className="font-black text-sm text-gray-900">{e.title}</span><span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{new Date(e.date).toLocaleDateString()}</span></div>
-                      <button onClick={() => deleteExam(subject, e.id)} className="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100"><Trash2 className="w-4 h-4" /></button>
+                    <div key={e.id} className="bg-white p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[1.8rem] flex justify-between items-center shadow-sm border border-gray-100">
+                      <div className="flex flex-col"><span className="font-black text-xs sm:text-sm text-gray-900">{e.title}</span><span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 sm:mt-1">{new Date(e.date).toLocaleDateString()}</span></div>
+                      <button onClick={() => deleteExam(subject, e.id)} className="p-1.5 sm:p-2 text-red-500 bg-red-50 rounded-lg sm:rounded-xl hover:bg-red-100"><Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" /></button>
                     </div>
                   ))}
                </div>
@@ -1312,18 +1473,18 @@ function SubjectModal({ subject, initialTab, onClose, attendanceRecords, grades,
           )}
 
           {tab === 'links' && (
-            <div className="space-y-5">
-               <div className="bg-white p-6 rounded-[2rem] border border-gray-200 space-y-3">
-                  <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Añadir Enlace</p>
-                  <input type="text" value={linkTitle} onChange={e=>setLinkTitle(e.target.value)} placeholder="Título (Ej: Drive del Ramo)" className="w-full bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
-                  <input type="text" value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="URL (www...)" className="w-full bg-[#F2F2F7] p-3 rounded-xl text-xs font-bold outline-none" />
-                  <button onClick={() => { addLink(subject, linkTitle, linkUrl); setLinkTitle(''); setLinkUrl(''); }} className="w-full py-4 bg-gray-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Guardar Link</button>
+            <div className="space-y-4 sm:space-y-5">
+               <div className="bg-white p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 space-y-3">
+                  <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase ml-1">Añadir Enlace</p>
+                  <input type="text" value={linkTitle} onChange={e=>setLinkTitle(e.target.value)} placeholder="Título (Ej: Drive)" className="w-full bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
+                  <input type="text" value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="URL (www...)" className="w-full bg-[#F2F2F7] p-2.5 sm:p-3 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold outline-none" />
+                  <button onClick={() => { addLink(subject, linkTitle, linkUrl); setLinkTitle(''); setLinkUrl(''); }} className="w-full py-3 sm:py-4 bg-gray-900 text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Guardar Link</button>
                </div>
-               <div className="space-y-3">
+               <div className="space-y-2.5 sm:space-y-3">
                   {(links[subject] || []).map((l) => (
-                    <div key={l.id} className="bg-white p-5 rounded-[1.8rem] flex justify-between items-center shadow-sm border border-gray-100">
-                      <a href={l.url} target="_blank" rel="noreferrer" className="flex items-center gap-3"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><LinkIcon className="w-4 h-4" /></div><span className="font-black text-sm text-gray-900 hover:text-blue-600 transition-colors">{l.title}</span></a>
-                      <button onClick={() => deleteLink(subject, l.id)} className="p-2 text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                    <div key={l.id} className="bg-white p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[1.8rem] flex justify-between items-center shadow-sm border border-gray-100">
+                      <a href={l.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 sm:gap-3 overflow-hidden pr-2"><div className="p-1.5 sm:p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0"><LinkIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></div><span className="font-black text-xs sm:text-sm text-gray-900 hover:text-blue-600 transition-colors truncate">{l.title}</span></a>
+                      <button onClick={() => deleteLink(subject, l.id)} className="p-1.5 sm:p-2 text-red-500 hover:text-red-700 shrink-0"><Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" /></button>
                     </div>
                   ))}
                </div>
@@ -1331,7 +1492,7 @@ function SubjectModal({ subject, initialTab, onClose, attendanceRecords, grades,
           )}
 
           {tab === 'notes' && (
-            <textarea autoFocus className="w-full h-96 bg-white rounded-[2.5rem] p-8 text-sm leading-relaxed font-bold border border-gray-200 outline-none shadow-inner shadow-gray-100/50 text-gray-800 placeholder:text-gray-200" placeholder="Escribe tus apuntes aquí... se guardan solos en la nube." value={notes[subject] || ''} onChange={(e) => saveNote(subject, e.target.value)} />
+            <textarea autoFocus className="w-full h-80 sm:h-96 bg-white rounded-[1.5rem] sm:rounded-[2.5rem] p-5 sm:p-8 text-xs sm:text-sm leading-relaxed font-bold border border-gray-200 outline-none shadow-inner shadow-gray-100/50 text-gray-800 placeholder:text-gray-200" placeholder="Escribe tus apuntes aquí... se guardan solos en la nube." value={notes[subject] || ''} onChange={(e) => saveNote(subject, e.target.value)} />
           )}
         </div>
       </div>
@@ -1341,23 +1502,23 @@ function SubjectModal({ subject, initialTab, onClose, attendanceRecords, grades,
 
 function StatCard({ icon, title, value, unit, color, bg, onClick }) {
   return (
-    <div onClick={onClick} className="bg-white p-3.5 sm:p-4 rounded-[1.8rem] border border-gray-200 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col justify-between gap-3 cursor-pointer hover:shadow-md transition-all active:scale-95 group">
+    <div onClick={onClick} className="bg-white p-3 sm:p-4 rounded-[1.2rem] sm:rounded-[1.8rem] border border-gray-200 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col justify-between gap-2 sm:gap-3 cursor-pointer hover:shadow-md transition-all active:scale-95 group">
       <div className="flex items-center justify-between">
-        <div className={`p-2.5 ${bg} ${color} rounded-[1.1rem] transition-transform group-hover:scale-110`}>{icon}</div>
-        <ChevronRightCircle className="w-4 h-4 text-gray-200 group-hover:text-blue-500 transition-colors" />
+        <div className={`p-2 sm:p-2.5 ${bg} ${color} rounded-[0.9rem] sm:rounded-[1.1rem] transition-transform group-hover:scale-110`}>{icon}</div>
+        <ChevronRightCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-200 group-hover:text-blue-500 transition-colors" />
       </div>
-      <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</p><p className="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">{value} {unit && <span className="text-xs font-bold text-gray-400">{unit}</span>}</p></div>
+      <div><p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</p><p className="text-lg sm:text-2xl font-black text-gray-900 mt-0.5">{value} {unit && <span className="text-[10px] sm:text-xs font-bold text-gray-400">{unit}</span>}</p></div>
     </div>
   );
 }
 
 function SubjectListModal({ onClose, subjects, onSelect }) {
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[90] p-5 animate-in fade-in duration-300">
-      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-white">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-xl text-gray-900 uppercase tracking-tight">Materias</h3><button onClick={onClose} className="p-2.5 rounded-full bg-gray-50 text-gray-400"><X className="w-4 h-4" /></button></div>
-        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
-          {subjects.map((s, i) => (<div key={i} onClick={() => onSelect(s)} className="bg-white p-5 rounded-[1.5rem] shadow-sm hover:shadow-md cursor-pointer flex justify-between items-center transition-all active:scale-95 group"><span className="font-black text-sm text-gray-900 leading-tight">{s}</span><ChevronRightCircle className="w-5 h-5 text-gray-200 group-hover:text-blue-500" /></div>))}
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[90] p-4 sm:p-5 animate-in fade-in duration-300">
+      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-white">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-lg sm:text-xl text-gray-900 uppercase tracking-tight">Materias</h3><button onClick={onClose} className="p-2 sm:p-2.5 rounded-full bg-gray-50 text-gray-400"><X className="w-4 h-4" /></button></div>
+        <div className="p-4 sm:p-6 max-h-[60vh] overflow-y-auto space-y-2 sm:space-y-3">
+          {subjects.map((s, i) => (<div key={i} onClick={() => onSelect(s)} className="bg-white p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[1.5rem] shadow-sm hover:shadow-md cursor-pointer flex justify-between items-center transition-all active:scale-95 group"><span className="font-black text-xs sm:text-sm text-gray-900 leading-tight">{s}</span><ChevronRightCircle className="w-4 h-4 sm:w-5 sm:h-5 text-gray-200 group-hover:text-blue-500" /></div>))}
         </div>
       </div>
     </div>
@@ -1366,14 +1527,14 @@ function SubjectListModal({ onClose, subjects, onSelect }) {
 
 function AcademicLoadModal({ onClose, load, total }) {
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[90] p-5 animate-in fade-in">
-      <div className="bg-[#F2F2F7] w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden border border-white">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white"><div><h3 className="font-black text-xl uppercase">Carga Semanal</h3><p className="text-xs font-bold text-gray-400 mt-1">{total} HORAS TOTALES</p></div><button onClick={onClose} className="p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
-        <div className="p-6 space-y-3">
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[90] p-4 sm:p-5 animate-in fade-in">
+      <div className="bg-[#F2F2F7] w-full max-w-md rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white"><div><h3 className="font-black text-lg sm:text-xl uppercase">Carga Semanal</h3><p className="text-[10px] sm:text-xs font-bold text-gray-400 mt-0.5 sm:mt-1">{total} HORAS TOTALES</p></div><button onClick={onClose} className="p-2 sm:p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
+        <div className="p-4 sm:p-6 space-y-2.5 sm:space-y-3">
           {load.map((item, i) => (
-            <div key={i} className="bg-white p-5 rounded-[1.8rem] flex justify-between items-center border border-gray-100 shadow-sm gap-4">
-              <span className="font-semibold text-sm text-gray-700 truncate" title={item.subject}>{item.subject}</span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-5 py-2.5 rounded-full uppercase tracking-widest shrink-0">
+            <div key={i} className="bg-white p-4 sm:p-5 rounded-[1.2rem] sm:rounded-[1.8rem] flex justify-between items-center border border-gray-100 shadow-sm gap-3 sm:gap-4">
+              <span className="font-semibold text-xs sm:text-sm text-gray-700 truncate" title={item.subject}>{item.subject}</span>
+              <span className="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-full uppercase tracking-widest shrink-0">
                 {Math.floor(item.mins/60)}H {item.mins%60}M
               </span>
             </div>
@@ -1402,14 +1563,14 @@ function GlobalAttendanceModal({ onClose, pct, period, setPeriod, weekData, mont
 
   return (
     <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[90] p-0 sm:p-5 animate-in fade-in">
-      <div className="bg-[#F2F2F7] w-full max-w-md rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white animate-in slide-in-from-bottom-10">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-xl uppercase">Asistencia</h3><button onClick={onClose} className="p-3 bg-gray-50 text-gray-400 rounded-full"><X className="w-5 h-5" /></button></div>
-        <div className="p-6">
-          <div className="flex bg-gray-200/60 p-1.5 rounded-2xl w-full mb-6 shadow-inner">
-            {['week', 'month'].map(p => (<button key={p} onClick={() => setPeriod(p)} className={`flex-1 py-2 text-xs font-black uppercase rounded-xl transition-all ${period === p ? 'bg-white shadow-md text-gray-900' : 'text-gray-500'}`}>{p === 'week' ? 'Semana' : 'Mes'}</button>))}
+      <div className="bg-[#F2F2F7] w-full max-w-md rounded-t-[2rem] sm:rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white animate-in slide-in-from-bottom-10">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-lg sm:text-xl uppercase">Asistencia</h3><button onClick={onClose} className="p-2 sm:p-3 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4 sm:w-5 sm:h-5" /></button></div>
+        <div className="p-4 sm:p-6">
+          <div className="flex bg-gray-200/60 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl w-full mb-4 sm:mb-6 shadow-inner">
+            {['week', 'month'].map(p => (<button key={p} onClick={() => setPeriod(p)} className={`flex-1 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase rounded-lg sm:rounded-xl transition-all ${period === p ? 'bg-white shadow-md text-gray-900' : 'text-gray-500'}`}>{p === 'week' ? 'Semana' : 'Mes'}</button>))}
           </div>
           
-          <div className="bg-white p-7 rounded-[2.5rem] shadow-sm mb-6 border border-gray-200/50 relative overflow-hidden">
+          <div className="bg-white p-5 sm:p-7 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm mb-4 sm:mb-6 border border-gray-200/50 relative overflow-hidden">
              <svg viewBox={`0 0 ${width} ${height + 20}`} className="w-full h-auto overflow-visible">
                <defs>
                  <linearGradient id="gradientLine" x1="0" y1="0" x2="0" y2="1">
@@ -1442,7 +1603,7 @@ function GlobalAttendanceModal({ onClose, pct, period, setPeriod, weekData, mont
              </svg>
           </div>
 
-          <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-200 flex items-center justify-between"><div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Global</p><p className={`text-4xl font-black mt-1 ${pct < 75 ? 'text-red-500' : 'text-green-500'}`}>{pct}%</p></div><span className="text-[10px] font-black text-gray-400 bg-gray-50 border border-gray-100 px-3 py-2 rounded-xl uppercase">Meta: 75%</span></div>
+          <div className="bg-white p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm border border-gray-200 flex items-center justify-between"><div><p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest">Global</p><p className={`text-3xl sm:text-4xl font-black mt-0.5 sm:mt-1 ${pct < 75 ? 'text-red-500' : 'text-green-500'}`}>{pct}%</p></div><span className="text-[9px] sm:text-[10px] font-black text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl uppercase">Meta: 75%</span></div>
         </div>
       </div>
     </div>
@@ -1457,35 +1618,35 @@ function TrophiesModal({ onClose, currentTime, semesterStart, semesterEnd }) {
   const weeksGrid = Array.from({length: totalWeeks}).map((_, i) => {
     const isEarned = i < passedWeeks;
     return (
-      <div key={i} className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${isEarned ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
-        <Trophy className={`w-6 h-6 ${isEarned ? 'text-amber-500 fill-amber-500 drop-shadow-md' : 'text-gray-300'}`} />
-        <span className={`text-[9px] font-black mt-2 uppercase tracking-widest ${isEarned ? 'text-amber-700' : 'text-gray-400'}`}>Sem {i+1}</span>
+      <div key={i} className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl sm:rounded-2xl border transition-all ${isEarned ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+        <Trophy className={`w-5 h-5 sm:w-6 sm:h-6 ${isEarned ? 'text-amber-500 fill-amber-500 drop-shadow-md' : 'text-gray-300'}`} />
+        <span className={`text-[8px] sm:text-[9px] font-black mt-1.5 sm:mt-2 uppercase tracking-widest ${isEarned ? 'text-amber-700' : 'text-gray-400'}`}>Sem {i+1}</span>
       </div>
     );
   });
 
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-5 animate-in zoom-in-95">
-      <div className="bg-[#F2F2F7] w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-white">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-xl uppercase">Vitrina de Logros</h3><button onClick={onClose} className="p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-4 sm:p-5 animate-in zoom-in-95">
+      <div className="bg-[#F2F2F7] w-full max-w-lg rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-lg sm:text-xl uppercase">Vitrina de Logros</h3><button onClick={onClose} className="p-2 sm:p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
         
-        <div className="p-6 max-h-[70vh] overflow-y-auto">
-          <div className={`p-6 rounded-[2rem] border shadow-sm flex items-center gap-5 transition-all mb-6 ${isSemesterFinished ? 'bg-gradient-to-r from-yellow-400 to-amber-500 border-yellow-300' : 'bg-white border-gray-100'}`}>
-            <div className={`p-4 rounded-2xl ${isSemesterFinished ? 'bg-white/20 backdrop-blur-sm' : 'bg-gray-50'}`}>
-              <Trophy className={`w-10 h-10 ${isSemesterFinished ? 'text-white fill-white' : 'text-gray-300'}`} />
+        <div className="p-4 sm:p-6 max-h-[70vh] overflow-y-auto">
+          <div className={`p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border shadow-sm flex items-center gap-3 sm:gap-5 transition-all mb-4 sm:mb-6 ${isSemesterFinished ? 'bg-gradient-to-r from-yellow-400 to-amber-500 border-yellow-300' : 'bg-white border-gray-100'}`}>
+            <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl ${isSemesterFinished ? 'bg-white/20 backdrop-blur-sm' : 'bg-gray-50'}`}>
+              <Trophy className={`w-8 h-8 sm:w-10 sm:h-10 ${isSemesterFinished ? 'text-white fill-white' : 'text-gray-300'}`} />
             </div>
             <div className="flex-1">
-              <p className={`text-[10px] font-black uppercase tracking-widest ${isSemesterFinished ? 'text-yellow-100' : 'text-gray-400'}`}>Trofeo Maestro</p>
-              <p className={`text-xl font-black mt-1 ${isSemesterFinished ? 'text-white' : 'text-gray-900'}`}>{isSemesterFinished ? '¡Semestre Completado!' : 'Termina el semestre'}</p>
+              <p className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${isSemesterFinished ? 'text-yellow-100' : 'text-gray-400'}`}>Trofeo Maestro</p>
+              <p className={`text-base sm:text-xl font-black mt-0.5 sm:mt-1 ${isSemesterFinished ? 'text-white' : 'text-gray-900'}`}>{isSemesterFinished ? '¡Semestre Completado!' : 'Termina el semestre'}</p>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-            <div className="flex justify-between items-center mb-5">
-              <h4 className="text-xs font-black uppercase tracking-widest text-gray-800">Trofeos Semanales</h4>
-              <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg">{passedWeeks} / {totalWeeks} Obtenidos</span>
+          <div className="bg-white p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-100 shadow-sm">
+            <div className="flex justify-between items-center mb-4 sm:mb-5">
+              <h4 className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-800">Trofeos Semanales</h4>
+              <span className="text-[9px] sm:text-[10px] font-black bg-amber-100 text-amber-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg">{passedWeeks} / {totalWeeks} Obtenidos</span>
             </div>
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3">
               {weeksGrid}
             </div>
           </div>
@@ -1497,15 +1658,15 @@ function TrophiesModal({ onClose, currentTime, semesterStart, semesterEnd }) {
 
 function SettingsModal({ onClose, syncKey, cloudStatus, tempSyncKey, setTempSyncKey, onApply, onExport, onImport, fileRef, db }) {
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-5 animate-in fade-in">
-      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[3rem] shadow-2xl overflow-hidden border border-white animate-in zoom-in-95">
-        <div className="px-8 py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-xl uppercase">Ajustes</h3><button onClick={onClose} className="p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
-        <div className="p-7 space-y-6">
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-200/50">
-            <div className="flex items-center gap-4 mb-5 pb-5 border-b border-gray-50"><div className="p-3 rounded-2xl bg-[#F2F2F7] border border-gray-200 shadow-inner">{cloudStatus === 'synced' ? <Cloud className="text-green-500" /> : <CloudOff className="text-gray-300" />}</div><div><p className="font-black text-sm uppercase">Sincronización</p><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{cloudStatus === 'synced' ? 'Conectado' : 'Sin Conexión'}</p></div></div>
-            {db && (<div><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block ml-1">Clave de Enlace</label><div className="flex gap-2"><input type="text" placeholder="Tu clave..." value={tempSyncKey} onChange={(e) => setTempSyncKey(e.target.value)} className="flex-1 px-4 py-3 text-xs font-black rounded-xl bg-[#F2F2F7] text-gray-900 outline-none border border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 shadow-inner" /><button onClick={onApply} className="px-4 py-3 bg-gray-900 text-white text-[10px] font-black uppercase rounded-xl shadow-md active:scale-90 tracking-widest">OK</button></div><p className="mt-3 text-[9px] font-black text-blue-600 bg-blue-50 py-2 rounded-lg text-center uppercase tracking-widest border border-blue-100">Actual: {syncKey}</p></div>)}
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-4 sm:p-5 animate-in fade-in">
+      <div className="bg-[#F2F2F7] w-full max-w-sm rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white animate-in zoom-in-95">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white"><h3 className="font-black text-lg sm:text-xl uppercase">Ajustes</h3><button onClick={onClose} className="p-2 sm:p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
+        <div className="p-5 sm:p-7 space-y-4 sm:space-y-6">
+          <div className="bg-white p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm border border-gray-200/50">
+            <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-5 pb-4 sm:pb-5 border-b border-gray-50"><div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-[#F2F2F7] border border-gray-200 shadow-inner">{cloudStatus === 'synced' ? <Cloud className="text-green-500 w-5 h-5 sm:w-6 sm:h-6" /> : <CloudOff className="text-gray-300 w-5 h-5 sm:w-6 sm:h-6" />}</div><div><p className="font-black text-xs sm:text-sm uppercase">Sincronización</p><p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 sm:mt-1">{cloudStatus === 'synced' ? 'Conectado' : 'Sin Conexión'}</p></div></div>
+            {db && (<div><label className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 sm:mb-2 block ml-1">Clave de Enlace</label><div className="flex gap-2"><input type="text" placeholder="Tu clave..." value={tempSyncKey} onChange={(e) => setTempSyncKey(e.target.value)} className="flex-1 px-3 py-2 sm:px-4 sm:py-3 text-[10px] sm:text-xs font-black rounded-lg sm:rounded-xl bg-[#F2F2F7] text-gray-900 outline-none border border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 shadow-inner" /><button onClick={onApply} className="px-3 py-2 sm:px-4 sm:py-3 bg-gray-900 text-white text-[9px] sm:text-[10px] font-black uppercase rounded-lg sm:rounded-xl shadow-md active:scale-90 tracking-widest">OK</button></div><p className="mt-2.5 sm:mt-3 text-[8px] sm:text-[9px] font-black text-blue-600 bg-blue-50 py-1.5 sm:py-2 rounded-lg text-center uppercase tracking-widest border border-blue-100">Actual: {syncKey}</p></div>)}
           </div>
-          <div className="space-y-2.5"><button onClick={onExport} className="w-full py-4 bg-white border border-gray-200 text-gray-900 rounded-[1.2rem] font-black text-xs uppercase tracking-widest shadow-sm active:scale-95 transition-all">Exportar Datos</button><input type="file" accept=".json" ref={fileRef} onChange={onImport} className="hidden" /><button onClick={() => fileRef.current?.click()} className="w-full py-4 bg-white border border-gray-200 text-gray-900 rounded-[1.2rem] font-black text-xs uppercase tracking-widest shadow-sm active:scale-95 transition-all">Importar Datos</button></div>
+          <div className="space-y-2 sm:space-y-2.5"><button onClick={onExport} className="w-full py-3 sm:py-4 bg-white border border-gray-200 text-gray-900 rounded-[1rem] sm:rounded-[1.2rem] font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-sm active:scale-95 transition-all">Exportar Datos</button><input type="file" accept=".json" ref={fileRef} onChange={onImport} className="hidden" /><button onClick={() => fileRef.current?.click()} className="w-full py-3 sm:py-4 bg-white border border-gray-200 text-gray-900 rounded-[1rem] sm:rounded-[1.2rem] font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-sm active:scale-95 transition-all">Importar Datos</button></div>
         </div>
       </div>
     </div>
@@ -1514,10 +1675,10 @@ function SettingsModal({ onClose, syncKey, cloudStatus, tempSyncKey, setTempSync
 
 function PendingModal({ onClose, classes, onAction, names, days }) {
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-5 animate-in zoom-in-95">
-      <div className="bg-[#F2F2F7] w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-white">
-        <div className="px-8 py-7 bg-white border-b border-gray-200 flex justify-between items-center"><div className="flex items-center gap-4"><div className="p-3 bg-red-500 text-white rounded-2xl"><ListTodo className="w-6 h-6" /></div><div><h3 className="font-black text-xl tracking-tight uppercase">Pasar Lista</h3><p className="text-xs font-bold text-red-600 uppercase tracking-widest">Pendientes: {classes.length}</p></div></div><button onClick={onClose} className="p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
-        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">{classes.map((p) => (<div key={p.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4"><div><p className="font-black text-gray-900 tracking-tight leading-none">{p.subject}</p><p className="text-[10px] font-black text-gray-400 uppercase mt-2 tracking-widest">{days[p.dateObj.getDay()]} {p.dateObj.getDate()} {names[p.dateObj.getMonth()].substring(0,3)} • {p.time}</p></div><div className="flex gap-2 w-full sm:w-auto"><button onClick={() => onAction(p.id, 'absent')} className="flex-1 px-5 py-3 bg-red-50 text-red-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-100 active:scale-90 transition-all">Falté</button><button onClick={() => onAction(p.id, 'present')} className="flex-1 px-5 py-3 bg-green-50 text-green-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-green-100 active:scale-90 transition-all">Asistí</button></div></div>))}</div>
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[110] p-4 sm:p-5 animate-in zoom-in-95">
+      <div className="bg-[#F2F2F7] w-full max-w-lg rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 bg-white border-b border-gray-200 flex justify-between items-center"><div className="flex items-center gap-3 sm:gap-4"><div className="p-2 sm:p-3 bg-red-500 text-white rounded-xl sm:rounded-2xl"><ListTodo className="w-5 h-5 sm:w-6 sm:h-6" /></div><div><h3 className="font-black text-lg sm:text-xl tracking-tight uppercase">Pasar Lista</h3><p className="text-[10px] sm:text-xs font-bold text-red-600 uppercase tracking-widest">Pendientes: {classes.length}</p></div></div><button onClick={onClose} className="p-2 sm:p-2.5 bg-gray-50 text-gray-400 rounded-full"><X className="w-4 h-4" /></button></div>
+        <div className="p-4 sm:p-6 max-h-[60vh] overflow-y-auto space-y-3 sm:space-y-4">{classes.map((p) => (<div key={p.id} className="bg-white p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4"><div><p className="font-black text-sm sm:text-base text-gray-900 tracking-tight leading-none">{p.subject}</p><p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase mt-1.5 sm:mt-2 tracking-widest">{days[p.dateObj.getDay()]} {p.dateObj.getDate()} {names[p.dateObj.getMonth()].substring(0,3)} • {p.time}</p></div><div className="flex gap-2 w-full sm:w-auto"><button onClick={() => onAction(p.id, 'absent')} className="flex-1 px-4 py-2.5 sm:px-5 sm:py-3 bg-red-50 text-red-700 rounded-xl sm:rounded-2xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest border border-red-100 active:scale-90 transition-all">Falté</button><button onClick={() => onAction(p.id, 'present')} className="flex-1 px-4 py-2.5 sm:px-5 sm:py-3 bg-green-50 text-green-700 rounded-xl sm:rounded-2xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest border border-green-100 active:scale-90 transition-all">Asistí</button></div></div>))}</div>
       </div>
     </div>
   );
