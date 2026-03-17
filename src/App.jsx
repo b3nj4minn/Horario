@@ -79,6 +79,7 @@ const inductionScheduleData = {
   Miércoles: [], Jueves: [{ time: '09:30 - 11:00', subject: 'Bienvenida Carrera', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1, eventType: 'evento' }], Viernes: [], Sábado: []
 };
 
+// HORARIO ACTUALIZADO CON LOS DATOS DE LA MALLA MÁS RECIENTE
 const regularScheduleData = {
   Lunes: [
     { time: '11:00 - 12:10', subject: 'Proyecto Cornerstone', room: 'MCSR-Y03', color: colors.cornerstone },
@@ -87,6 +88,7 @@ const regularScheduleData = {
     { time: '17:00 - 18:10', subject: 'Álgebra', room: 'MCSR-Y02', color: colors.algebra }
   ],
   Martes: [
+    { time: '08:00 - 09:10', subject: 'Química Aplicada a la Ingeniería', room: 'MCSR-202', color: colors.quimica },
     { time: '09:30 - 10:40', subject: 'Química Aplicada a la Ingeniería', room: 'MCSR-202', color: colors.quimica },
     { time: '11:00 - 12:10', subject: 'Int. a la Administración de Proyectos', room: 'MCSR-Y02', color: colors.proyectos },
     { time: '12:30 - 13:40', subject: 'Int. a la Administración de Proyectos', room: 'MCSR-Y02', color: colors.proyectos },
