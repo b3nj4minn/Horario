@@ -8,14 +8,13 @@ import {
   UploadCloud, Calculator, Link2, ExternalLink, Play, Pause, RotateCcw,
   Cloud, CloudOff, CloudLightning, Key, ChevronRightCircle, Activity, BarChart3,
   SlidersHorizontal, Check, Trash2, Link as LinkIcon, Trophy, Sparkles, Quote,
-  CalendarPlus
+  CalendarPlus, Archive
 } from 'lucide-react';
 
 // --- FIREBASE CLOUD SYNC (NUBE PERSONAL) ---
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// Tu configuración real de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyACSWP04hK8WNF1Fmc3lsVm6FhfQx1rx0I",
   authDomain: "calendario-um.firebaseapp.com",
@@ -35,13 +34,11 @@ try {
 
 // Colores Pastel Estilo Apple
 const colors = {
-  cornerstone: 'bg-blue-100 text-blue-900 border-blue-200',
-  algebra: 'bg-orange-100 text-orange-900 border-orange-200',
-  quimica: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-  proyectos: 'bg-purple-100 text-purple-900 border-purple-200',
-  pensamiento: 'bg-rose-100 text-rose-900 border-rose-200',
-  induccion1: 'bg-indigo-100 text-indigo-900 border-indigo-200', 
-  induccion2: 'bg-amber-100 text-amber-900 border-amber-200', 
+  calculo: 'bg-blue-100 text-blue-900 border-blue-200',
+  fisica: 'bg-orange-100 text-orange-900 border-orange-200',
+  estadistica: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+  programacion: 'bg-purple-100 text-purple-900 border-purple-200',
+  creatividad: 'bg-rose-100 text-rose-900 border-rose-200',
   gris: 'bg-gray-100 text-gray-800 border-gray-200',
   menta: 'bg-teal-100 text-teal-900 border-teal-200',
   rosa: 'bg-pink-100 text-pink-900 border-pink-200',
@@ -72,47 +69,63 @@ const dailyVerses = [
   { text: "Corramos con paciencia la carrera que tenemos por delante, puestos los ojos en Jesús.", ref: "Hebreos 12:1-2" }
 ];
 
-// HORARIOS (Inducción convertida a Eventos para no penalizar asistencia)
-const inductionScheduleData = {
-  Lunes: [{ time: '08:00 - 09:00', subject: 'Tour Campus', teacher: 'Inducción', room: 'Hall Edificio Manuel Montt', color: colors.induccion1, eventType: 'evento' }, { time: '09:00 - 10:30', subject: 'Vida Universitaria', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1, eventType: 'evento' }],
-  Martes: [{ time: '09:00 - 10:30', subject: 'Convivencia Estudiantil', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion2, eventType: 'evento' }, { time: '11:00 - 12:30', subject: '¿Y esto es inclusión?', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion2, eventType: 'evento' }],
-  Miércoles: [], Jueves: [{ time: '09:30 - 11:00', subject: 'Bienvenida Carrera', teacher: 'Inducción', room: 'Auditorio Manuel Montt', color: colors.induccion1, eventType: 'evento' }], Viernes: [], Sábado: []
-};
+// HISTORIAL ACADÉMICO (PRIMER SEMESTRE COMPLETADO)
+const pastSemesters = [
+  {
+    name: "Primer Semestre 2026",
+    average: 6.2,
+    attendance: 100,
+    subjects: [
+      { name: "Int. a la Administración de Proyectos", grade: 6.0, status: "Aprobado" },
+      { name: "Álgebra", grade: 5.6, status: "Aprobado" },
+      { name: "Pensamiento Computacional", grade: 6.2, status: "Aprobado" },
+      { name: "Química Aplicada a la Ingeniería", grade: 6.4, status: "Aprobado" },
+      { name: "Proyecto Cornerstone", grade: 6.9, status: "Aprobado" }
+    ]
+  }
+];
 
-// HORARIO ACTUALIZADO CON LOS DATOS DE LA MALLA MÁS RECIENTE
+// HORARIO ACTUALIZADO (SEGUNDO SEMESTRE 2026)
 const regularScheduleData = {
   Lunes: [
-    { time: '11:00 - 12:10', subject: 'Proyecto Cornerstone', room: 'MCSR-Y03', color: colors.cornerstone },
-    { time: '12:30 - 13:40', subject: 'Proyecto Cornerstone', room: 'MCSR-Y03', color: colors.cornerstone },
-    { time: '13:40 - 17:00', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
-    { time: '17:00 - 18:10', subject: 'Álgebra', room: 'MCSR-Y02', color: colors.algebra }
+    { time: '11:00 - 12:10', subject: 'Creatividad e Innovación', room: 'MCSR-405', color: colors.creatividad },
+    { time: '12:10 - 12:30', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
+    { time: '12:30 - 13:40', subject: 'Cálculo', room: 'MCSR-Y02', color: colors.calculo },
+    { time: '13:40 - 15:30', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
+    { time: '15:30 - 16:40', subject: 'Física', room: 'MCSR-Y02', color: colors.fisica }
   ],
   Martes: [
-    { time: '08:00 - 09:10', subject: 'Química Aplicada a la Ingeniería', room: 'MCSR-202', color: colors.quimica },
-    { time: '09:30 - 10:40', subject: 'Química Aplicada a la Ingeniería', room: 'MCSR-202', color: colors.quimica },
-    { time: '11:00 - 12:10', subject: 'Int. a la Administración de Proyectos', room: 'MCSR-Y02', color: colors.proyectos },
-    { time: '12:30 - 13:40', subject: 'Int. a la Administración de Proyectos', room: 'MCSR-Y02', color: colors.proyectos },
-    { time: '13:40 - 17:00', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
-    { time: '17:00 - 18:10', subject: 'Álgebra', room: 'MCSR-203', color: colors.algebra }
+    { time: '08:00 - 09:10', subject: 'Program. Aplicada en Análisis de Datos', room: 'MCSR-Y03', color: colors.programacion },
+    { time: '09:30 - 10:40', subject: 'Program. Aplicada en Análisis de Datos', room: 'MALI-204', color: colors.programacion },
+    { time: '10:40 - 12:30', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
+    { time: '12:30 - 13:40', subject: 'Cálculo', room: 'MCSR-Y02', color: colors.calculo },
+    { time: '13:40 - 15:30', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
+    { time: '15:30 - 16:40', subject: 'Física', room: 'MCSR-Y02', color: colors.fisica }
   ],
-  Miércoles: [], 
-  Jueves: [],
+  Miércoles: [
+    { time: '11:00 - 12:10', subject: 'Física', room: 'MALL-Z10', color: colors.fisica },
+    { time: '12:10 - 14:00', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
+    { time: '14:00 - 15:10', subject: 'Física', room: 'MCSR-203', color: colors.fisica },
+    { time: '15:10 - 15:30', subject: 'Ventana', room: 'Tiempo Libre', color: 'bg-stone-100 text-stone-600 border-stone-200', isBreak: true },
+    { time: '15:30 - 16:40', subject: 'Estadística', room: 'Por Asignar', color: colors.estadistica }
+  ],
+  Jueves: [
+    { time: '12:30 - 13:40', subject: 'Cálculo', room: 'MCSR-Y02', color: colors.calculo }
+  ],
   Viernes: [
-    { time: '08:00 - 09:10', subject: 'Pensamiento Computacional', room: 'MCSR-201', color: colors.pensamiento },
-    { time: '09:30 - 10:40', subject: 'Pensamiento Computacional', room: 'MCSR-201', color: colors.pensamiento },
-    { time: '11:00 - 12:10', subject: 'Pensamiento Computacional', room: 'MALI-210', color: colors.pensamiento }
+    { time: '08:00 - 09:10', subject: 'Estadística', room: 'MCSR-203', color: colors.estadistica },
+    { time: '09:30 - 10:40', subject: 'Estadística', room: 'MCSR-203', color: colors.estadistica }
   ],
-  Sábado: [
-    { time: '08:00 - 09:10', subject: 'Álgebra', room: 'MCSR-203', color: colors.algebra }
-  ]
+  Sábado: []
 };
 
 const jsDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-const inductionStart = new Date(2026, 2, 9, 0, 0, 0);   
-const semesterStart = new Date(2026, 2, 16, 0, 0, 0);   
-const semesterEnd = new Date(2026, 6, 31, 23, 59, 59);  
+// FECHAS DEL SEGUNDO SEMESTRE (Corregidas al 10 de Agosto)
+const inductionStart = new Date(2026, 7, 10, 0, 0, 0);   
+const semesterStart = new Date(2026, 7, 10, 0, 0, 0); // Agosto 10, 2026   
+const semesterEnd = new Date(2026, 10, 21, 23, 59, 59); // Noviembre 21, 2026  
 
 const timeToMins = (timeStr) => { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; };
 const getMonday = (d) => { const date = new Date(d); const day = date.getDay(); const diff = date.getDate() - day + (day === 0 ? -6 : 1); date.setDate(diff); date.setHours(0,0,0,0); return date; };
@@ -127,11 +140,7 @@ const getClassesForDate = (date, customEvts = {}, hiddenEvts = {}) => {
   const dateStr = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
   
   let baseClasses = [];
-  if (date.getTime() < inductionStart.getTime()) {
-    baseClasses = [];
-  } else if (date.getTime() >= inductionStart.getTime() && date.getTime() < semesterStart.getTime()) {
-    baseClasses = inductionScheduleData[dayName] || [];
-  } else {
+  if (date.getTime() >= semesterStart.getTime() && date.getTime() <= semesterEnd.getTime() + (7 * 24 * 60 * 60 * 1000)) {
     baseClasses = regularScheduleData[dayName] || [];
   }
 
@@ -175,6 +184,7 @@ export default function App() {
   const [showAcademicLoadModal, setShowAcademicLoadModal] = useState(false); 
   const [showGlobalAttendanceModal, setShowGlobalAttendanceModal] = useState(false); 
   const [showTrophiesModal, setShowTrophiesModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showVerseModal, setShowVerseModal] = useState(false);
   const [attendanceChartPeriod, setAttendanceChartPeriod] = useState('week');
 
@@ -247,9 +257,6 @@ export default function App() {
         const rb = data.recycleBin || []; setRecycleBin(rb); localStorage.setItem('academic_recycle_bin', JSON.stringify(rb));
       } else {
         setNotes({}); setAttendanceRecords({}); setExams({}); setGrades({}); setLinks({}); setCustomEvents({}); setHiddenEvents({}); setRecycleBin([]);
-        localStorage.removeItem('academic_notes'); localStorage.removeItem('academic_attendance_v3');
-        localStorage.removeItem('academic_exams'); localStorage.removeItem('academic_grades'); localStorage.removeItem('academic_links');
-        localStorage.removeItem('academic_custom_events'); localStorage.removeItem('academic_hidden_events'); localStorage.removeItem('academic_recycle_bin');
       }
       setCloudStatus('synced');
     }, (error) => {
@@ -259,6 +266,33 @@ export default function App() {
 
     return () => unsubscribe();
   }, [syncKey]);
+
+  // MOTOR AUTO-ASISTENCIA (Rellena todo al 100% hasta la fecha actual/21 de Noviembre)
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const fillLimit = new Date(Math.min(currentTime.getTime(), semesterEnd.getTime()));
+    let updated = { ...attendanceRecords };
+    let changed = false;
+
+    for (let d = new Date(semesterStart); d <= fillLimit; d.setDate(d.getDate() + 1)) {
+      getClassesForDate(new Date(d), customEvents, hiddenEvents).filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => {
+        const classEndTime = new Date(d); classEndTime.setHours(...cls.time.split(' - ')[1].split(':'), 0, 0);
+        if (classEndTime < fillLimit) {
+          const classId = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}_${cls.subject}_${cls.time}`;
+          if (!updated[classId]) {
+            updated[classId] = 'present';
+            changed = true;
+          }
+        }
+      });
+    }
+    
+    if (changed) {
+       setAttendanceRecords(updated);
+       localStorage.setItem('academic_attendance_v3', JSON.stringify(updated));
+       pushToCloud({ attendanceRecords: updated });
+    }
+  }, [isDataLoaded, currentTime, attendanceRecords, customEvents, hiddenEvents]);
 
   const pushToCloud = async (newDataFields) => {
     if (!db) return;
@@ -358,7 +392,7 @@ export default function App() {
        localStorage.setItem('academic_recycle_bin', JSON.stringify(filtered));
        pushToCloud({ recycleBin: filtered });
     }
-  }, [isDataLoaded]);
+  }, [isDataLoaded, recycleBin]);
 
   // Pomodoro Timer
   useEffect(() => {
@@ -386,7 +420,6 @@ export default function App() {
     resetPomodoro();
   };
 
-  // Motor Inteligente de Asistencia (Ignora las "Ventanas" y los "Eventos")
   const pendingAttendanceClasses = useMemo(() => {
     const pending = [];
     if (currentTime.getTime() < inductionStart.getTime()) return pending;
@@ -402,31 +435,11 @@ export default function App() {
     return pending.sort((a, b) => b.dateObj - a.dateObj);
   }, [currentTime, attendanceRecords, customEvents, hiddenEvents]);
 
-  // Motor Generador de Lista de Próximos Eventos (Global)
   const upcomingEventsList = useMemo(() => {
     const events = [];
     const today = new Date(currentTime);
     today.setHours(0,0,0,0);
 
-    // 1. Obtener eventos de inducción
-    if (today < semesterStart) {
-      const startD = new Date(Math.max(today.getTime(), inductionStart.getTime()));
-      for (let d = new Date(startD); d < semesterStart; d.setDate(d.getDate() + 1)) {
-        const dayName = jsDays[d.getDay()];
-        const indEvents = inductionScheduleData[dayName] || [];
-        indEvents.forEach(e => {
-          if (e.eventType === 'evento') {
-            const dateStr = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-            const id = `${dateStr}_${e.subject}_${e.time}`;
-            if (!hiddenEvents[id]) {
-              events.push({ ...e, dateObj: new Date(d), dateStr });
-            }
-          }
-        });
-      }
-    }
-
-    // 2. Obtener eventos personalizados
     Object.keys(customEvents).forEach(dateStr => {
       const [y, m, d] = dateStr.split('-');
       const evtDate = new Date(y, m - 1, d);
@@ -440,7 +453,6 @@ export default function App() {
       }
     });
 
-    // 3. Filtrar los que ya pasaron hoy por hora y ordenar
     const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
     return events
       .filter(e => {
@@ -455,12 +467,12 @@ export default function App() {
         }
         return timeToMins(a.time.split(' - ')[0]) - timeToMins(b.time.split(' - ')[0]);
       });
-  }, [customEvents, hiddenEvents, currentTime]);
+  }, [customEvents, currentTime]);
 
   useEffect(() => { if (isDataLoaded && pendingAttendanceClasses.length > 0 && !hasPromptedAttendance && !isPreInduction) { setShowPendingModal(true); setHasPromptedAttendance(true); } }, [isDataLoaded, pendingAttendanceClasses, hasPromptedAttendance, isPreInduction]);
   useEffect(() => { if (showPendingModal && pendingAttendanceClasses.length === 0) setShowPendingModal(false); }, [pendingAttendanceClasses, showPendingModal]);
 
-  // Funciones con PushToCloud
+  // Funciones con PushToCloud Completas
   const saveNote = (s, t) => { const u = { ...notes, [s]: t }; setNotes(u); localStorage.setItem('academic_notes', JSON.stringify(u)); pushToCloud({ notes: u }); };
   const recordAttendance = (id, st) => { const u = { ...attendanceRecords, [id]: st }; setAttendanceRecords(u); localStorage.setItem('academic_attendance_v3', JSON.stringify(u)); pushToCloud({ attendanceRecords: u }); };
   
@@ -510,6 +522,7 @@ export default function App() {
   };
 
   const exportDataJSON = () => { const blob = new Blob([JSON.stringify({ notes, attendanceRecords, exams, grades, links, customEvents, hiddenEvents, recycleBin }, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Backup_Horario.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); showToast('Exportado exitosamente'); };
+  
   const handleFileUpload = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const imp = JSON.parse(ev.target.result); if (imp.notes) setNotes(imp.notes); if (imp.attendanceRecords) setAttendanceRecords(imp.attendanceRecords); if (imp.exams) setExams(imp.exams); if (imp.grades) setGrades(imp.grades); if (imp.links) setLinks(imp.links); if (imp.customEvents) setCustomEvents(imp.customEvents); if (imp.hiddenEvents) setHiddenEvents(imp.hiddenEvents); if (imp.recycleBin) setRecycleBin(imp.recycleBin); pushToCloud(imp); showToast('Datos importados'); setShowSettingsModal(false); } catch (err) { showToast('Error al importar'); } }; reader.readAsText(file); };
 
   const handleSaveEvent = (eventData) => {
@@ -632,10 +645,10 @@ export default function App() {
     if (view === 'month') { 
       const mid = new Date(currentWeekStart); mid.setDate(mid.getDate() + 15);
       const nextMonth = new Date(mid.getFullYear(), mid.getMonth() + 1, 1); 
-      if (nextMonth.getFullYear() < 2026 || (nextMonth.getFullYear() === 2026 && nextMonth.getMonth() <= 6)) { setCurrentWeekStart(getMonday(nextMonth)); }
+      setCurrentWeekStart(getMonday(nextMonth)); 
     } else if (view === 'week') { 
       const nextWeek = new Date(currentWeekStart); nextWeek.setDate(nextWeek.getDate() + 7); 
-      if (nextWeek.getTime() <= semesterEnd.getTime() + (7 * 24 * 60 * 60 * 1000)) { setCurrentWeekStart(nextWeek); }
+      setCurrentWeekStart(nextWeek); 
     } else if (view === 'day') {
       const nextDay = new Date(selectedDay); nextDay.setDate(nextDay.getDate() + 1);
       setSelectedDay(nextDay);
@@ -647,7 +660,7 @@ export default function App() {
     if (view === 'month') { 
       const mid = new Date(currentWeekStart); mid.setDate(mid.getDate() + 15);
       const prevMonth = new Date(mid.getFullYear(), mid.getMonth() - 1, 1); 
-      if (prevMonth.getFullYear() > 2026 || (prevMonth.getFullYear() === 2026 && prevMonth.getMonth() >= 0)) { setCurrentWeekStart(getMonday(prevMonth)); }
+      setCurrentWeekStart(getMonday(prevMonth)); 
     } else if (view === 'week') { 
       const prevWeek = new Date(currentWeekStart); prevWeek.setDate(prevWeek.getDate() - 7); 
       setCurrentWeekStart(prevWeek); 
@@ -678,7 +691,6 @@ export default function App() {
     }
   }
 
-  // --- CÁLCULOS ESTILO APPLE (Excluyendo Ventanas Y EVENTOS) ---
   const uniqueSubjectsList = useMemo(() => {
     const s = new Set(); 
     Object.values(regularScheduleData).flat().filter(c => !c.isBreak).forEach(cls => s.add(cls.subject));
@@ -714,7 +726,6 @@ export default function App() {
     return total === 0 ? 100 : Math.round((pC / total) * 100);
   }, [attendanceRecords, uniqueSubjectsList]);
 
-  // GRÁFICOS ACUMULATIVOS: Calcula la progresión real sin caer a 0 en días futuros
   const attendanceChartDataWeek = useMemo(() => {
     let cumP = 0, cumT = 0;
     return weekDaysArray.map(date => {
@@ -821,7 +832,6 @@ export default function App() {
 
   const renderClassCard = (cls, idx, date, isToday) => {
     const classId = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${cls.subject}_${cls.time}`;
-    // Si es evento, no mostramos asistencia ni exámenes vinculados.
     const status = cls.eventType === 'evento' ? null : attendanceRecords[classId]; 
     const exam = cls.eventType === 'evento' ? null : getUpcomingExam(cls.subject);
     const isC = isToday && currentMins >= timeToMins(cls.time.split(' - ')[0]) && currentMins <= timeToMins(cls.time.split(' - ')[1]);
@@ -842,7 +852,6 @@ export default function App() {
       <div 
         key={idx} 
         onClick={() => { 
-          // Solo abrir panel de administración si NO es evento y NO es break
           if (cls.eventType !== 'evento' && !cls.isBreak) {
              setSelectedSubjectModal(cls.subject); 
              setModalTab('attendance'); 
@@ -967,7 +976,7 @@ export default function App() {
               {recycleBin.length > 0 && <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse" />}
             </button>
             
-            <button onClick={() => setEventModalData({ isNew: true, formDate: toLocalISODate(new Date()), startTime: '08:00', endTime: '09:30', color: colors.cornerstone, subject: '', room: '', eventType: 'evento' })} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 shadow-sm active:scale-95 transition-all" title="Añadir">
+            <button onClick={() => setEventModalData({ isNew: true, formDate: toLocalISODate(new Date()), startTime: '08:00', endTime: '09:30', color: colors.creatividad, subject: '', room: '', eventType: 'evento' })} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 shadow-sm active:scale-95 transition-all" title="Añadir">
               <CalendarPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
@@ -977,6 +986,10 @@ export default function App() {
             
             <button onClick={() => setShowVerseModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 shadow-sm active:scale-95 transition-all" title="Versículo Diario">
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+
+            <button onClick={() => setShowHistoryModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 shadow-sm active:scale-95 transition-all" title="Historial Académico">
+              <Archive className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
             <button onClick={() => setShowTrophiesModal(true)} className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 hover:bg-amber-100 shadow-sm active:scale-95 transition-all" title="Mis Trofeos">
@@ -1098,7 +1111,7 @@ export default function App() {
         ) : (
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 lg:gap-6 ${view === 'week' ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-1'}`}>
             {weekDaysArray.map((date) => {
-              if (view === 'week' && date.getDay() === 0) return null; // Ocultar domingo en vista semanal
+              if (view === 'week' && date.getDay() === 0) return null;
               if (view === 'day' && date.toDateString() !== selectedDay.toDateString()) return null;
 
               const classes = getClassesForDate(date, customEvents, hiddenEvents);
@@ -1106,7 +1119,6 @@ export default function App() {
               
               const hideOnMobile = view === 'week' && classes.length === 0 && !isToday;
 
-              // Separamos Eventos de Materias/Ventanas
               const eventosList = classes.filter(c => c.eventType === 'evento');
               const materiasList = classes.filter(c => c.eventType !== 'evento');
 
@@ -1155,6 +1167,7 @@ export default function App() {
       {showAcademicLoadModal && <AcademicLoadModal onClose={() => setShowAcademicLoadModal(false)} load={academicLoadDetails} total={stats.totalHours} />}
       {showGlobalAttendanceModal && <GlobalAttendanceModal onClose={() => setShowGlobalAttendanceModal(false)} pct={globalAttendancePct} period={attendanceChartPeriod} setPeriod={setAttendanceChartPeriod} weekData={attendanceChartDataWeek} monthData={attendanceChartDataMonth} />}
       {showTrophiesModal && <TrophiesModal onClose={() => setShowTrophiesModal(false)} currentTime={currentTime} semesterStart={semesterStart} semesterEnd={semesterEnd} />}
+      {showHistoryModal && <HistoryModal onClose={() => setShowHistoryModal(false)} semesters={pastSemesters} />}
 
       {/* MODAL GESTOR DE MATERIA */}
       {selectedSubjectModal && (
@@ -1188,6 +1201,53 @@ export default function App() {
 }
 
 // --- COMPONENTES MODALES Y EXTRAS ---
+
+function HistoryModal({ onClose, semesters }) {
+  return (
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[120] p-4 sm:p-5 animate-in zoom-in-95 duration-300">
+      <div className="bg-[#F2F2F7] w-full max-w-lg rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden border border-white flex flex-col max-h-[85vh]">
+        <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200 flex justify-between items-center bg-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><Archive className="w-5 h-5"/></div>
+            <h3 className="font-black text-lg sm:text-xl uppercase tracking-tight">Historial Académico</h3>
+          </div>
+          <button onClick={onClose} className="p-2 sm:p-2.5 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+          {semesters.map((sem, idx) => (
+            <div key={idx} className="bg-white rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-6 border border-gray-100 shadow-sm">
+              <div className="flex justify-between items-end border-b border-gray-100 pb-4 mb-4">
+                <div>
+                  <h4 className="text-base sm:text-lg font-black text-gray-900">{sem.name}</h4>
+                  <p className="text-[10px] sm:text-xs font-bold text-emerald-600 uppercase tracking-widest mt-1">
+                    Completado • Asistencia: {sem.attendance}%
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest">Promedio Final</p>
+                  <p className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tighter">{sem.average}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                {sem.subjects.map((sub, i) => (
+                  <div key={i} className="flex justify-between items-center bg-[#F8F9FA] p-3 sm:p-4 rounded-xl border border-gray-200/60">
+                    <div className="flex-1 min-w-0 pr-3">
+                      <p className="font-black text-xs sm:text-sm text-gray-800 truncate">{sub.name}</p>
+                      <p className="text-[9px] sm:text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-0.5">{sub.status}</p>
+                    </div>
+                    <span className="text-lg font-black text-gray-900">{sub.grade.toFixed(1)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function RecycleBinModal({ onClose, items, onRestore, onEmpty, onPermDelete }) {
   return (
@@ -1249,7 +1309,7 @@ function EventEditorModal({ data, onClose, onSave, onDelete }) {
   const [startTime, setStartTime] = useState(data.startTime || '08:00');
   const [endTime, setEndTime] = useState(data.endTime || '09:30');
   const [room, setRoom] = useState(data.room || '');
-  const [color, setColor] = useState(data.color || colors.cornerstone);
+  const [color, setColor] = useState(data.color || colors.creatividad);
   
   const [eventType, setEventType] = useState(data.eventType || (data.isNew ? 'evento' : 'materia'));
 
@@ -1547,7 +1607,6 @@ function AcademicLoadModal({ onClose, load, total }) {
   );
 }
 
-// Gráfico Lineal Acumulativo (SVG) para Asistencia
 function GlobalAttendanceModal({ onClose, pct, period, setPeriod, weekData, monthData }) {
   const data = period === 'week' ? weekData : monthData;
   const paddingX = 20;
