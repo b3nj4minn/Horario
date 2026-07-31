@@ -693,8 +693,17 @@ export default function App() {
 
   const uniqueSubjectsList = useMemo(() => {
     const s = new Set(); 
+    // 1. Materias del horario base de este semestre
     Object.values(regularScheduleData).flat().filter(c => !c.isBreak).forEach(cls => s.add(cls.subject));
-    Object.values(customEvents).flat().filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => s.add(cls.subject));
+    
+    // 2. Materias modificadas/añadidas, PERO solo si pertenecen a este semestre en adelante
+    Object.entries(customEvents).forEach(([dateStr, events]) => {
+      const [y, m, d] = dateStr.split('-');
+      const evtDate = new Date(y, m - 1, d);
+      if (evtDate >= semesterStart) {
+        events.filter(c => !c.isBreak && c.eventType !== 'evento').forEach(cls => s.add(cls.subject));
+      }
+    });
     return Array.from(s);
   }, [customEvents]);
 
